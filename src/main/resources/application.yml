@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: stock-alert-bot
+  data:
+    redis:
+      host: localhost
+      port: 6379
+logging:
+  level:
+    root: INFO
+    com.weiluo: DEBUG
