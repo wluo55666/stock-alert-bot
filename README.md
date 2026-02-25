@@ -8,6 +8,7 @@ A high-performance, reactive Java backend that monitors live market data (Stocks
 *   **Real-time:** WebSockets (Client & Server)
 *   **State Management:** Redis (for sliding windows and deduplication)
 *   **Build:** Gradle
+*   **Containerization:** Docker & Docker Compose
 
 ## 🚀 Features (Planned)
 1.  **Ingest:** Connect to live WebSocket feeds (e.g., Binance, Finnhub, Alpaca).
@@ -15,4 +16,15 @@ A high-performance, reactive Java backend that monitors live market data (Stocks
 3.  **Alert:** Send notifications via Telegram/Discord.
 
 ## 🏃‍♂️ How to Run
-*(Coming soon)*
+
+### Prerequisites
+*   Docker Desktop installed.
+
+### Start the Stack
+Run the application and Redis database with a single command:
+
+```bash
+docker-compose up --build
+```
+
+The API will be available at `http://localhost:8080`.
