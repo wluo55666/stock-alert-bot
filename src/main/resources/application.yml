@@ -9,3 +9,15 @@ logging:
   level:
     root: INFO
     com.weiluo: DEBUG
+
+app:
+  # Provide comma-separated symbols in the APP_SYMBOLS env var, e.g., APP_SYMBOLS=AAPL,MSFT
+  symbols: ${APP_SYMBOLS:AAPL,MSFT,TSLA}
+  sliding-window:
+    duration-seconds: 300
+    threshold-percent: 0.05 # 5% change threshold
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:""}
+    chat-id: ${TELEGRAM_CHAT_ID:""}
+  finnhub:
+    api-key: ${FINNHUB_API_KEY:""}
