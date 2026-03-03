@@ -42,10 +42,8 @@ class SlidingWindowAnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        properties = new AppProperties(
-                List.of("AAPL"),
-                new AppProperties.SlidingWindow(300, 0.05), // 5% threshold
-                null,
+        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05), // 5% threshold
+                null, null,
                 null);
 
         when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
