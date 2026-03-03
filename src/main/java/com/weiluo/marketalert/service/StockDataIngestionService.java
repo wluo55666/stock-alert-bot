@@ -46,17 +46,12 @@ public class StockDataIngestionService {
 
             // Send subscription messages
             Flux<WebSocketMessage> subscriptionMessages = Flux.fromIterable(properties.symbols())
-                    .map(symbol -> "{\"type\":\"subscribe\",\"symbol\":\"" + symbol + "\"}")
-                    .map(session::textMessage);
+                    .map(symbol -> "{\"type\":\"subscribe\",\"symbol\":\"" + symbol + "\"}").map(session::textMessage);
 
             return session.send(subscriptionMessages)
-                    .thenMany(session.receive()
-                            .map(WebSocketMessage::getPayloadAsText)
-                            .doOnNext(this::handleMessage))
+                    .thenMany(session.receive().map(WebSocketMessage::getPayloadAsText).doOnNext(this::handleMessage))
                     .then();
-        }).subscribe(
-                null,
-                error -> log.error("WebSocket Error: ", error),
+        }).subscribe(null, error -> log.error("WebSocket Error: ", error),
                 () -> log.info("WebSocket connection closed"));
     }
 
@@ -77,6 +72,10 @@ public class StockDataIngestionService {
 
     public Flux<MarketTrade> getTradeStream() {
         return tradeSink.asFlux();
+    }
+
+    public void injectTrade(MarketTrade trade) {
+        tradeSink.tryEmitNext(trade);
     }
 
     public record FinnhubMessage(String type, List<FinnhubTrade> data) {
