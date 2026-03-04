@@ -18,7 +18,8 @@ class MarketTradeAggregatorTest {
         MarketTradeAggregator aggregator = new MarketTradeAggregator();
         Duration barDuration = Duration.ofSeconds(1);
 
-        long now = System.currentTimeMillis();
+        // Use a fixed, aligned time to prevent tests from crossing second boundaries
+        long now = 1700000000000L;
 
         Flux<MarketTrade> trades = Flux.just(new MarketTrade("AAPL", 150.0, now),
                 new MarketTrade("AAPL", 155.0, now + 100), new MarketTrade("AAPL", 149.0, now + 500),

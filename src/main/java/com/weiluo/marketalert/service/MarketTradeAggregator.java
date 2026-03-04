@@ -29,8 +29,10 @@ public class MarketTradeAggregator {
      * @return a stream of aggregated Bars
      */
     public Flux<SymbolBar> aggregateToBars(Flux<MarketTrade> tradeStream, Duration barDuration) {
-        return tradeStream.groupBy(MarketTrade::symbol).flatMap(groupedStream -> groupedStream.window(barDuration)
-                .flatMap(window -> reduceToBar(window, barDuration, groupedStream.key())));
+        long barMillis = barDuration.toMillis();
+        return tradeStream.groupBy(MarketTrade::symbol)
+                .flatMap(groupedStream -> groupedStream.windowUntilChanged(trade -> trade.timestamp() / barMillis)
+                        .flatMap(window -> reduceToBar(window, barDuration, groupedStream.key())));
     }
 
     private Mono<SymbolBar> reduceToBar(Flux<MarketTrade> window, Duration barDuration, String symbol) {
@@ -47,9 +49,10 @@ public class MarketTradeAggregator {
                 low = Math.min(low, price);
             }
 
-            // Use the timestamp of the last trade in the window as the bar's end time
-            ZonedDateTime endTime = ZonedDateTime
-                    .ofInstant(Instant.ofEpochMilli(trades.get(trades.size() - 1).timestamp()), ZoneId.systemDefault());
+            // Group by bucket to get logical end time
+            long bucketId = trades.get(0).timestamp() / barDuration.toMillis();
+            long endMillis = (bucketId + 1) * barDuration.toMillis();
+            ZonedDateTime endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endMillis), ZoneId.systemDefault());
 
             return new SymbolBar(symbol, new BaseBar(barDuration, endTime, open, high, low, close, volume));
         });
