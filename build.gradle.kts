@@ -20,6 +20,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
+    implementation("org.ta4j:ta4j-core:0.15")
     runtimeOnly("io.netty:netty-resolver-dns-native-macos") {
         artifact {
             classifier = "osx-aarch_64"

@@ -14,8 +14,9 @@ A high-performance, reactive Java backend that monitors live market data (Stocks
 ## 🚀 Features (Implemented)
 
 1. **Ingest:** Connect to live WebSocket feeds (Finnhub US Stocks).
-2. **Analyze:** Sliding window analysis backed by Redis ZSET (e.g., "Price dropped 5% in 5 minutes").
-3. **Alert:** Sends notifications via Telegram Bot API with Redis deduplication to prevent spamming.
+2. **Basic Analysis:** Sliding window analysis backed by Redis ZSET (e.g., "Price dropped 5% in 5 minutes").
+3. **Advanced Technical Analysis:** `ta4j` integration that aggregates live trades into OHLC time-based bars (e.g., 1-minute bars) and runs technical indicators (RSI and MACD) to generate smart bullish/bearish signal alerts.
+4. **Alert:** Sends notifications via Telegram Bot API with Redis deduplication to prevent spamming.
 
 ## 🏃‍♂️ How to Run
 
