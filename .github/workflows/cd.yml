@@ -19,10 +19,10 @@ jobs:
           mkdir -p $HOME/.docker-ci-temp
           echo '{"auths": {}}' > $HOME/.docker-ci-temp/config.json
           
-          # 2. Force Docker to use this empty config for the rest of this script
+          # 2. Force Docker to use this empty config
           export DOCKER_CONFIG=$HOME/.docker-ci-temp
           
-          # 3. Execute your deployment
-          docker compose down
-          docker compose up -d --build
+          # 3. Execute your deployment using the hyphenated command
+          docker-compose down
+          docker-compose up -d --build
           docker image prune -f
