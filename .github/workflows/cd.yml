@@ -13,16 +13,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # --- UPDATED FOR JAVA 24 ---
+      - name: Set up JDK 24
+        uses: actions/setup-java@v4
+        with:
+          java-version: '24'
+          distribution: 'temurin' 
+
+      - name: Build the JAR file
+        # Compiles the Java 24 code and creates the .jar so Docker can find it
+        run: ./gradlew build -x test 
+      # ---------------------------
+
       - name: Deploy via Docker Compose
         run: |
-          # 1. Create a temporary, empty Docker config to bypass the Mac Keychain
           mkdir -p $HOME/.docker-ci-temp
           echo '{"auths": {}}' > $HOME/.docker-ci-temp/config.json
-          
-          # 2. Force Docker to use this empty config
           export DOCKER_CONFIG=$HOME/.docker-ci-temp
           
-          # 3. Execute your deployment using the hyphenated command
           docker-compose down
           docker-compose up -d --build
           docker image prune -f
