@@ -11,8 +11,10 @@ import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.util.retry.Retry;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 
 @Service
@@ -51,8 +53,15 @@ public class StockDataIngestionService {
             return session.send(subscriptionMessages)
                     .thenMany(session.receive().map(WebSocketMessage::getPayloadAsText).doOnNext(this::handleMessage))
                     .then();
-        }).subscribe(null, error -> log.error("WebSocket Error: ", error),
-                () -> log.info("WebSocket connection closed"));
+        })
+        .retryWhen(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(5))
+                .maxBackoff(Duration.ofMinutes(1))
+                .doBeforeRetry(retrySignal -> log.warn("Reconnecting WebSocket after error: {}", retrySignal.failure().getMessage())))
+        .repeatWhen(companion -> companion
+                .doOnNext(o -> log.info("Reconnecting WebSocket after normal close..."))
+                .delayElements(Duration.ofSeconds(5)))
+        .subscribe(null, error -> log.error("WebSocket Fatal Error: ", error),
+                () -> log.info("WebSocket connection permanently closed"));
     }
 
     private void handleMessage(String payload) {
@@ -78,7 +87,7 @@ public class StockDataIngestionService {
         tradeSink.tryEmitNext(trade);
     }
 
-    public record FinnhubMessage(String type, List<FinnhubTrade> data) {
+    public record FinnhubMessage(String type, List<FinnhubTrade> data) {   
     }
 
     public record FinnhubTrade(double p, String s, long t, double v) {
