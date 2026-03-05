@@ -19,7 +19,7 @@ jobs:
           docker compose down
           
           # Rebuild the bot image with the new code and start services in the background
-          docker compose up -d --build --no-cache
+          docker compose up -d --build
           
           # Optional: Clean up old unused Docker images to save disk space
           docker image prune -f
