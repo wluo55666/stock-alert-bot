@@ -9,9 +9,10 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
+import org.ta4j.core.BaseBarSeriesBuilder; // Added import for BaseBarSeriesBuilder
 import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
-import org.ta4j.core.indicators.SMAIndicator;
+import org.ta4j.core.indicators.averages.EMAIndicator; // Added import for EMAIndicator
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.CrossedDownIndicatorRule;
@@ -64,7 +65,8 @@ public class Ta4jAnalysisService {
     private Mono<Void> processBar(SymbolBar symbolBar) {
         String symbol = symbolBar.symbol();
         BarSeries series = seriesMap.computeIfAbsent(symbol, key -> {
-            BaseBarSeries newSeries = new BaseBarSeries(key);
+            // Corrected to use BaseBarSeriesBuilder directly after import
+            BaseBarSeries newSeries = new BaseBarSeriesBuilder().withName(key).build();
             newSeries.setMaximumBarCount(200); // Keep max 200 bars in memory to prevent leak
             return newSeries;
         });
@@ -88,8 +90,8 @@ public class Ta4jAnalysisService {
 
         // MACD Indicator
         MACDIndicator macd = new MACDIndicator(closePrice, properties.ta4j().macdShort(), properties.ta4j().macdLong());
-        org.ta4j.core.indicators.EMAIndicator signalEMAMACD = new org.ta4j.core.indicators.EMAIndicator(macd,
-                properties.ta4j().macdSignal());
+        // Corrected to use EMAIndicator directly after import
+        EMAIndicator signalEMAMACD = new EMAIndicator(macd, properties.ta4j().macdSignal());
 
         // Bullish Rule: MACD crosses up signal AND RSI < 70 (not overbought)
         Rule bullishRule = new CrossedUpIndicatorRule(macd, signalEMAMACD).and(new UnderIndicatorRule(rsi, 70));

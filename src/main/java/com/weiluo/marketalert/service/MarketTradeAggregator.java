@@ -9,8 +9,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
 @Component
 public class MarketTradeAggregator {
@@ -49,12 +47,24 @@ public class MarketTradeAggregator {
                 low = Math.min(low, price);
             }
 
-            // Group by bucket to get logical end time
             long bucketId = trades.get(0).timestamp() / barDuration.toMillis();
+            long beginMillis = bucketId * barDuration.toMillis();
             long endMillis = (bucketId + 1) * barDuration.toMillis();
-            ZonedDateTime endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endMillis), ZoneId.systemDefault());
+            Instant beginTime = Instant.ofEpochMilli(beginMillis);
+            Instant endTime = Instant.ofEpochMilli(endMillis);
 
-            return new SymbolBar(symbol, new BaseBar(barDuration, endTime, open, high, low, close, volume));
+            org.ta4j.core.num.Num pOpen = org.ta4j.core.num.DoubleNum.valueOf(open);
+            org.ta4j.core.num.Num pHigh = org.ta4j.core.num.DoubleNum.valueOf(high);
+            org.ta4j.core.num.Num pLow = org.ta4j.core.num.DoubleNum.valueOf(low);
+            org.ta4j.core.num.Num pClose = org.ta4j.core.num.DoubleNum.valueOf(close);
+            org.ta4j.core.num.Num pVolume = org.ta4j.core.num.DoubleNum.valueOf(volume);
+            org.ta4j.core.num.Num pAmount = org.ta4j.core.num.DoubleNum.valueOf(0);
+
+            Instant endInst = endTime; // Use the already calculated endTime
+            Instant beginInst = beginTime; // Use the already calculated beginTime
+
+            return new SymbolBar(symbol, new BaseBar(barDuration, endInst, beginInst, pOpen, pHigh, pLow, pClose,
+                    pVolume, pAmount, trades.size()));
         });
     }
 }

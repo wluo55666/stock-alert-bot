@@ -5,18 +5,15 @@ import com.weiluo.marketalert.service.MarketTradeAggregator.SymbolBar;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
+
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
 import org.ta4j.core.BaseBar;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -62,8 +59,12 @@ class Ta4jAnalysisServiceTest {
     }
 
     private SymbolBar createBar(String symbol, double price, int minuteOffset) {
-        ZonedDateTime endTime = ZonedDateTime.now(ZoneId.systemDefault()).plusMinutes(minuteOffset);
-        BaseBar bar = new BaseBar(Duration.ofMinutes(1), endTime, price, price, price, price, 100);
+        java.time.Instant endTime = java.time.Instant.now().plus(Duration.ofMinutes(minuteOffset));
+        java.time.Instant beginTime = endTime.minus(Duration.ofMinutes(1));
+        BaseBar bar = new BaseBar(Duration.ofMinutes(1), beginTime, endTime, org.ta4j.core.num.DoubleNum.valueOf(price),
+                org.ta4j.core.num.DoubleNum.valueOf(price), org.ta4j.core.num.DoubleNum.valueOf(price),
+                org.ta4j.core.num.DoubleNum.valueOf(price), org.ta4j.core.num.DoubleNum.valueOf(100),
+                org.ta4j.core.num.DoubleNum.valueOf(0), 1L);
         return new SymbolBar(symbol, bar);
     }
 }
