@@ -63,7 +63,7 @@ public class MarketTradeAggregator {
             Instant endInst = endTime; // Use the already calculated endTime
             Instant beginInst = beginTime; // Use the already calculated beginTime
 
-            return new SymbolBar(symbol, new BaseBar(barDuration, endInst, beginInst, pOpen, pHigh, pLow, pClose,
+            return new SymbolBar(symbol, new BaseBar(barDuration, beginInst, endInst, pOpen, pHigh, pLow, pClose,
                     pVolume, pAmount, trades.size()));
         });
     }
