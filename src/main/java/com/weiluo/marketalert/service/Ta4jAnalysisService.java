@@ -65,8 +65,12 @@ public class Ta4jAnalysisService {
     private Mono<Void> processBar(SymbolBar symbolBar) {
         String symbol = symbolBar.symbol();
         BarSeries series = seriesMap.computeIfAbsent(symbol, key -> {
-            // Corrected to use BaseBarSeriesBuilder directly after import
-            BaseBarSeries newSeries = new BaseBarSeriesBuilder().withName(key).build();
+            // Corrected to use BaseBarSeriesBuilder with proper NumFactory
+            // Explicitly use DoubleNumFactory to match the bars created in MarketTradeAggregator (DoubleNum)
+            BaseBarSeries newSeries = new BaseBarSeriesBuilder()
+                    .withName(key)
+                    .withNumFactory(org.ta4j.core.num.DoubleNumFactory.getInstance())
+                    .build();
             newSeries.setMaximumBarCount(200); // Keep max 200 bars in memory to prevent leak
             return newSeries;
         });
