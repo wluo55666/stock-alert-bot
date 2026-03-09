@@ -5,8 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.List;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(List<String> symbols, SlidingWindow slidingWindow, Ta4j ta4j, Telegram telegram,
-                Finnhub finnhub) {
+public record AppProperties(List<String> symbols, SlidingWindow slidingWindow, Ta4j ta4j, Telegram telegram) {
         public record SlidingWindow(int durationSeconds, double thresholdPercent) {
         }
 
@@ -14,8 +13,5 @@ public record AppProperties(List<String> symbols, SlidingWindow slidingWindow, T
         }
 
         public record Telegram(String botToken, String chatId) {
-        }
-
-        public record Finnhub(String apiKey) {
         }
 }

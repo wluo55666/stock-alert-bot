@@ -6,7 +6,6 @@ services:
     environment:
       - SPRING_DATA_REDIS_HOST=redis
       - APP_SYMBOLS=${APP_SYMBOLS}
-      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     depends_on:

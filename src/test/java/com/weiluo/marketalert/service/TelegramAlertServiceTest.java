@@ -26,8 +26,7 @@ class TelegramAlertServiceTest {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
 
-        properties = new AppProperties(null, null, null, new AppProperties.Telegram("test_bot_token", "test_chat_id"),
-                null);
+        properties = new AppProperties(null, null, null, new AppProperties.Telegram("test_bot_token", "test_chat_id"));
 
         // Injecting the local mock web server via reflection or rebuilding
         // We can create a test-specific instance or use ReflectionTestUtils
@@ -69,7 +68,7 @@ class TelegramAlertServiceTest {
     @Test
     void testMissingTokenSkipsAlert() throws InterruptedException {
         // Change properties to simulate missing token
-        properties = new AppProperties(null, null, null, new AppProperties.Telegram("", "test_chat_id"), null);
+        properties = new AppProperties(null, null, null, new AppProperties.Telegram("", "test_chat_id"));
         telegramAlertService = new TelegramAlertService(properties);
 
         StepVerifier.create(telegramAlertService.sendAlert("Test Message")).verifyComplete();

@@ -37,7 +37,7 @@ class Ta4jAnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        properties = new AppProperties(List.of("AAPL"), null, new AppProperties.Ta4j(60, 14, 12, 26, 9), null, null);
+        properties = new AppProperties(List.of("AAPL"), null, new AppProperties.Ta4j(60, 14, 12, 26, 9), null);
 
         analysisService = new Ta4jAnalysisService(ingestionService, telegramAlertService, properties, redisTemplate);
     }
