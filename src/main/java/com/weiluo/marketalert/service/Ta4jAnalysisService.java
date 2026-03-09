@@ -1,7 +1,7 @@
 package com.weiluo.marketalert.service;
 
 import com.weiluo.marketalert.config.AppProperties;
-import com.weiluo.marketalert.service.MarketTradeAggregator.SymbolBar;
+import com.weiluo.marketalert.model.SymbolBar;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,10 +9,10 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
-import org.ta4j.core.BaseBarSeriesBuilder; // Added import for BaseBarSeriesBuilder
+import org.ta4j.core.BaseBarSeriesBuilder;
 import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
-import org.ta4j.core.indicators.averages.EMAIndicator; // Added import for EMAIndicator
+import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.CrossedDownIndicatorRule;
@@ -31,7 +31,6 @@ public class Ta4jAnalysisService {
     private static final Logger log = LoggerFactory.getLogger(Ta4jAnalysisService.class);
 
     private final StockDataIngestionService ingestionService;
-    private final MarketTradeAggregator aggregator;
     private final TelegramAlertService telegramAlertService;
     private final AppProperties properties;
     private final ReactiveStringRedisTemplate redisTemplate;
@@ -39,11 +38,9 @@ public class Ta4jAnalysisService {
     // In-memory BarSeries for each symbol
     private final Map<String, BarSeries> seriesMap = new ConcurrentHashMap<>();
 
-    public Ta4jAnalysisService(StockDataIngestionService ingestionService, MarketTradeAggregator aggregator,
-            TelegramAlertService telegramAlertService, AppProperties properties,
-            ReactiveStringRedisTemplate redisTemplate) {
+    public Ta4jAnalysisService(StockDataIngestionService ingestionService, TelegramAlertService telegramAlertService,
+            AppProperties properties, ReactiveStringRedisTemplate redisTemplate) {
         this.ingestionService = ingestionService;
-        this.aggregator = aggregator;
         this.telegramAlertService = telegramAlertService;
         this.properties = properties;
         this.redisTemplate = redisTemplate;
@@ -56,21 +53,15 @@ public class Ta4jAnalysisService {
             return;
         }
 
-        Duration barDuration = Duration.ofSeconds(properties.ta4j().barDurationSeconds());
-
-        aggregator.aggregateToBars(ingestionService.getTradeStream(), barDuration).flatMap(this::processBar)
-                .subscribe(null, error -> log.error("Error in ta4j analysis stream", error));
+        ingestionService.getBarStream().flatMap(this::processBar).subscribe(null,
+                error -> log.error("Error in ta4j analysis stream", error));
     }
 
     private Mono<Void> processBar(SymbolBar symbolBar) {
         String symbol = symbolBar.symbol();
         BarSeries series = seriesMap.computeIfAbsent(symbol, key -> {
-            // Corrected to use BaseBarSeriesBuilder with proper NumFactory
-            // Explicitly use DoubleNumFactory to match the bars created in MarketTradeAggregator (DoubleNum)
-            BaseBarSeries newSeries = new BaseBarSeriesBuilder()
-                    .withName(key)
-                    .withNumFactory(org.ta4j.core.num.DoubleNumFactory.getInstance())
-                    .build();
+            BaseBarSeries newSeries = new BaseBarSeriesBuilder().withName(key)
+                    .withNumFactory(org.ta4j.core.num.DoubleNumFactory.getInstance()).build();
             newSeries.setMaximumBarCount(200); // Keep max 200 bars in memory to prevent leak
             return newSeries;
         });

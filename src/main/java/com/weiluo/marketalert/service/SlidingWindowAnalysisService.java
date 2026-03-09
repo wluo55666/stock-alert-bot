@@ -38,22 +38,23 @@ public class SlidingWindowAnalysisService {
             return;
         }
 
-        ingestionService.getTradeStream().flatMap(this::processTrade).subscribe(null,
+        ingestionService.getBarStream().flatMap(this::processBar).subscribe(null,
                 error -> log.error("Error in sliding window analysis", error));
     }
 
-    private Mono<Void> processTrade(MarketTrade trade) {
-        String key = "window:" + trade.symbol();
-        long now = trade.timestamp();
+    private Mono<Void> processBar(com.weiluo.marketalert.model.SymbolBar symbolBar) {
+        String key = "window:" + symbolBar.symbol();
+        long now = symbolBar.bar().getEndTime().toEpochMilli();
+        double price = symbolBar.bar().getClosePrice().doubleValue();
         long windowStart = now - (properties.slidingWindow().durationSeconds() * 1000L);
 
         // Add to sorted set: key, value (price string), score (timestamp)
-        return redisTemplate.opsForZSet().add(key, String.valueOf(trade.price()) + ":" + now, now)
+        return redisTemplate.opsForZSet().add(key, String.valueOf(price) + ":" + now, now)
                 // Remove older entries
                 .then(redisTemplate.opsForZSet().removeRangeByScore(key, Range.closed(0.0, (double) windowStart - 1)))
                 // Fetch the remaining window
                 .thenMany(redisTemplate.opsForZSet().range(key, Range.unbounded())).collectList()
-                .flatMap(items -> analyzeWindow(trade.symbol(), items, trade.price())).then();
+                .flatMap(items -> analyzeWindow(symbolBar.symbol(), items, price)).then();
     }
 
     private Mono<Void> analyzeWindow(String symbol, java.util.List<String> window, double currentPrice) {
