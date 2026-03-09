@@ -14,8 +14,6 @@ import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 
 @Service
@@ -29,71 +27,74 @@ public class StockDataIngestionService {
 
     public StockDataIngestionService(AppProperties properties, WebClient.Builder webClientBuilder) {
         this.properties = properties;
-        this.webClient = webClientBuilder.baseUrl("https://finnhub.io/api/v1").build();
+        this.webClient = webClientBuilder
+                .baseUrl("https://query1.finance.yahoo.com/v8/finance/chart")
+                .defaultHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .build();
         this.barSink = Sinks.many().multicast().onBackpressureBuffer();
     }
 
     @PostConstruct
     public void startIngestion() {
-        if (properties.finnhub() == null || properties.finnhub().apiKey() == null
-                || properties.finnhub().apiKey().isBlank()) {
-            log.warn("Finnhub API key not configured. REST polling skipped.");
-            return;
-        }
-
-        String apiKey = properties.finnhub().apiKey();
-
         Flux.interval(Duration.ofSeconds(60))
-                .flatMap(tick -> Flux.fromIterable(properties.symbols()).delayElements(Duration.ofMillis(200))) // Stagger
-                                                                                                                // requests
-                                                                                                                // to
-                                                                                                                // stay
-                                                                                                                // under
-                                                                                                                // 60/min
-                                                                                                                // burst
-                                                                                                                // limit
-                .flatMap(symbol -> fetchLatestCandle(symbol, apiKey))
-                .subscribe(this::injectBar, error -> log.error("Error in Finnhub polling loop: ", error));
+                .flatMap(tick -> Flux.fromIterable(properties.symbols())
+                        .delayElements(Duration.ofMillis(500))) // Stagger requests to stay under limits
+                .flatMap(this::fetchLatestCandle)
+                .subscribe(this::injectBar, error -> log.error("Error in Yahoo Finance polling loop: ", error));
 
-        log.info("Started Finnhub REST Polling (1-min candles) for symbols: {}", properties.symbols());
+        log.info("Started Yahoo Finance REST Polling (1-min candles) for symbols: {}", properties.symbols());
     }
 
-    private Flux<SymbolBar> fetchLatestCandle(String symbol, String apiKey) {
-        long endTimestamp = Instant.now().getEpochSecond();
-        long startTimestamp = endTimestamp - 60; // Fetch the last 1 minute
-
+    private Flux<SymbolBar> fetchLatestCandle(String symbol) {
         return webClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/stock/candle").queryParam("symbol", symbol)
-                        .queryParam("resolution", "1").queryParam("from", startTimestamp).queryParam("to", endTimestamp)
-                        .queryParam("token", apiKey).build())
-                .retrieve().bodyToMono(FinnhubCandleResponse.class).flatMapMany(response -> {
-                    if ("ok".equals(response.s()) && response.t() != null && !response.t().isEmpty()) {
-                        // The REST API might return multiple candles if time ranges overlap slightly.
-                        // We safely grab the last one.
-                        int lastIdx = response.t().size() - 1;
+                .uri("/{symbol}?interval=1m&range=5m", symbol)
+                .retrieve()
+                .bodyToMono(YahooResponse.class)
+                .flatMapMany(response -> {
+                    try {
+                        if (response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) {
+                            log.debug("No result data for {}.", symbol);
+                            return Flux.empty();
+                        }
+                        
+                        Result result = response.chart().result().get(0);
+                        if (result.timestamp() == null || result.timestamp().isEmpty()) {
+                            return Flux.empty();
+                        }
 
-                        Instant endTime = Instant.ofEpochSecond(response.t().get(lastIdx));
+                        Quote quote = result.indicators().quote().get(0);
+                        
+                        // Find the last valid index (sometimes current minute volume/close is still null)
+                        int lastIdx = result.timestamp().size() - 1;
+                        while (lastIdx >= 0 && (quote.close().get(lastIdx) == null || quote.volume().get(lastIdx) == null)) {
+                            lastIdx--;
+                        }
+
+                        if (lastIdx < 0) {
+                            return Flux.empty();
+                        }
+
+                        Instant endTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
                         Instant beginTime = endTime.minusSeconds(60);
 
                         BaseBar bar = new BaseBar(Duration.ofMinutes(1), beginTime, endTime,
-                                DoubleNum.valueOf(response.o().get(lastIdx)),
-                                DoubleNum.valueOf(response.h().get(lastIdx)),
-                                DoubleNum.valueOf(response.l().get(lastIdx)),
-                                DoubleNum.valueOf(response.c().get(lastIdx)),
-                                DoubleNum.valueOf(response.v().get(lastIdx)), DoubleNum.valueOf(0), // Amount (not
-                                                                                                    // provided)
+                                DoubleNum.valueOf(quote.open().get(lastIdx)),
+                                DoubleNum.valueOf(quote.high().get(lastIdx)),
+                                DoubleNum.valueOf(quote.low().get(lastIdx)),
+                                DoubleNum.valueOf(quote.close().get(lastIdx)),
+                                DoubleNum.valueOf(quote.volume().get(lastIdx)),
+                                DoubleNum.valueOf(0), // Amount (not provided)
                                 1L // Trade count approximation
                         );
 
                         log.debug("Built 1M Bar for {}: {}", symbol, bar);
                         return Flux.just(new SymbolBar(symbol, bar));
-                    } else if ("no_data".equals(response.s())) {
-                        log.debug("No data for {} in the last minute.", symbol);
-                    } else {
-                        log.warn("Unexpected response from Finnhub for {}: {}", symbol, response.s());
+                    } catch (Exception e) {
+                        log.warn("Failed to parse Yahoo Finance response for {}: {}", symbol, e.getMessage());
+                        return Flux.empty();
                     }
-                    return Flux.empty();
-                }).onErrorResume(e -> {
+                })
+                .onErrorResume(e -> {
                     log.error("Failed to fetch candle for {}: {}", symbol, e.getMessage());
                     return Flux.empty();
                 });
@@ -107,13 +108,10 @@ public class StockDataIngestionService {
         barSink.tryEmitNext(bar);
     }
 
-    public record FinnhubCandleResponse(List<Double> c, // Close
-            List<Double> h, // High
-            List<Double> l, // Low
-            List<Double> o, // Open
-            String s, // Status
-            List<Long> t, // Timestamp
-            List<Long> v // Volume
-    ) {
-    }
+    // Yahoo Finance JSON Models
+    public record YahooResponse(Chart chart) {}
+    public record Chart(List<Result> result, Object error) {}
+    public record Result(List<Long> timestamp, Indicators indicators) {}
+    public record Indicators(List<Quote> quote) {}
+    public record Quote(List<Double> open, List<Double> high, List<Double> low, List<Double> close, List<Long> volume) {}
 }

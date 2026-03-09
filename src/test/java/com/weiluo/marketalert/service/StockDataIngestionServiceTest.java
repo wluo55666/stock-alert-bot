@@ -35,14 +35,14 @@ class StockDataIngestionServiceTest {
     @BeforeEach
     void setUp() {
         when(webClientBuilder.baseUrl(anyString())).thenReturn(webClientBuilder);
+        when(webClientBuilder.defaultHeader(anyString(), anyString())).thenReturn(webClientBuilder);
         when(webClientBuilder.build()).thenReturn(webClient);
 
-        // Create properties without Finnhub API key to test the logic without
-        // connecting to Finnhub
+        // Create properties
         properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05), null, null,
                 new AppProperties.Finnhub(null));
         service = new StockDataIngestionService(properties, webClientBuilder);
-        service.startIngestion(); // Does nothing but log a warning since apiKey is null
+        service.startIngestion(); 
     }
 
     @Test
