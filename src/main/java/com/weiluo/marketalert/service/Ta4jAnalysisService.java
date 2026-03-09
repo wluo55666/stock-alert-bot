@@ -70,6 +70,8 @@ public class Ta4jAnalysisService {
         Duration barDuration = Duration.ofSeconds(properties.ta4j().barDurationSeconds());
         
         BarSeries series = seriesMap.computeIfAbsent(symbol, key -> {
+            // Corrected to use BaseBarSeriesBuilder with proper NumFactory
+            // Explicitly use DoubleNumFactory to match the bars created in MarketTradeAggregator (DoubleNum)
             BaseBarSeries newSeries = new BaseBarSeriesBuilder()
                     .withName(key)
                     .withNumFactory(org.ta4j.core.num.DoubleNumFactory.getInstance())
