@@ -7,12 +7,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBar;
 import org.ta4j.core.BaseBarSeries;
-import org.ta4j.core.BaseBarSeriesBuilder; // Added import for BaseBarSeriesBuilder
+import org.ta4j.core.BaseBarSeriesBuilder;
 import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
-import org.ta4j.core.indicators.averages.EMAIndicator; // Added import for EMAIndicator
+import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.CrossedDownIndicatorRule;
@@ -22,6 +24,7 @@ import org.ta4j.core.Rule;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -64,9 +67,9 @@ public class Ta4jAnalysisService {
 
     private Mono<Void> processBar(SymbolBar symbolBar) {
         String symbol = symbolBar.symbol();
+        Duration barDuration = Duration.ofSeconds(properties.ta4j().barDurationSeconds());
+        
         BarSeries series = seriesMap.computeIfAbsent(symbol, key -> {
-            // Corrected to use BaseBarSeriesBuilder with proper NumFactory
-            // Explicitly use DoubleNumFactory to match the bars created in MarketTradeAggregator (DoubleNum)
             BaseBarSeries newSeries = new BaseBarSeriesBuilder()
                     .withName(key)
                     .withNumFactory(org.ta4j.core.num.DoubleNumFactory.getInstance())
@@ -75,7 +78,54 @@ public class Ta4jAnalysisService {
             return newSeries;
         });
 
-        series.addBar(symbolBar.bar());
+        synchronized (series) {
+            // Fill missing bars to handle sparse data
+            if (!series.isEmpty()) {
+                Bar lastBar = series.getLastBar();
+                // Cast to ZonedDateTime for comparison if it is ZonedDateTime, wait, Bar in ta4j 0.15+ uses java.time.ZonedDateTime
+                // Let's use getEndTime() which is ZonedDateTime, or getEndTime().toInstant()
+                
+                // Because Bar uses Object depending on ta4j version, let's use toEpochSecond to compare
+                long expectedNextBeginSec = lastBar.getEndTime().toEpochMilli() / 1000;
+                long actualNextBeginSec = symbolBar.bar().getBeginTime().toEpochMilli() / 1000;
+                long barDurationSec = barDuration.getSeconds();
+
+                Instant expectedNextBeginInst = Instant.ofEpochMilli(lastBar.getEndTime().toEpochMilli());
+                Instant actualNextBeginInst = Instant.ofEpochMilli(symbolBar.bar().getBeginTime().toEpochMilli());
+                
+                while (expectedNextBeginInst.isBefore(actualNextBeginInst)) {
+                    Instant nextEndInst = expectedNextBeginInst.plus(barDuration);
+                    BaseBar emptyBar = new BaseBar(
+                            barDuration,
+                            expectedNextBeginInst,
+                            nextEndInst,
+                            lastBar.getClosePrice(),
+                            lastBar.getClosePrice(),
+                            lastBar.getClosePrice(),
+                            lastBar.getClosePrice(),
+                            org.ta4j.core.num.DoubleNum.valueOf(0),
+                            org.ta4j.core.num.DoubleNum.valueOf(0),
+                            0
+                    );
+                    
+                    try {
+                        series.addBar(emptyBar);
+                        log.debug("Filled missing bar for {} at {}", symbol, expectedNextBeginInst);
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Failed to add missing bar for {}: {}", symbol, e.getMessage());
+                        break;
+                    }
+                    expectedNextBeginInst = nextEndInst;
+                }
+            }
+
+            try {
+                series.addBar(symbolBar.bar());
+            } catch (IllegalArgumentException e) {
+                log.warn("Failed to add new bar for {}: {}", symbol, e.getMessage());
+            }
+        }
+
         int endIndex = series.getEndIndex();
 
         return analyze(symbol, series, endIndex);
@@ -94,7 +144,6 @@ public class Ta4jAnalysisService {
 
         // MACD Indicator
         MACDIndicator macd = new MACDIndicator(closePrice, properties.ta4j().macdShort(), properties.ta4j().macdLong());
-        // Corrected to use EMAIndicator directly after import
         EMAIndicator signalEMAMACD = new EMAIndicator(macd, properties.ta4j().macdSignal());
 
         // Bullish Rule: MACD crosses up signal AND RSI < 70 (not overbought)
