@@ -39,8 +39,7 @@ class StockDataIngestionServiceTest {
         when(webClientBuilder.build()).thenReturn(webClient);
 
         // Create properties
-        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05), null, null,
-                new AppProperties.Finnhub(null));
+        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05), null, null);
         service = new StockDataIngestionService(properties, webClientBuilder);
         service.startIngestion(); 
     }
