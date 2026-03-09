@@ -22,6 +22,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+import com.weiluo.marketalert.model.SymbolBar;
+import org.ta4j.core.BaseBar;
+import org.ta4j.core.num.DoubleNum;
+import java.time.ZonedDateTime;
+
 @ExtendWith(MockitoExtension.class)
 class SlidingWindowAnalysisServiceTest {
 
@@ -43,8 +48,7 @@ class SlidingWindowAnalysisServiceTest {
     @BeforeEach
     void setUp() {
         properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05), // 5% threshold
-                null, null,
-                null);
+                null, null, null);
 
         when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
 
@@ -56,14 +60,23 @@ class SlidingWindowAnalysisServiceTest {
                 properties);
     }
 
+    private SymbolBar createBar(String symbol, double price, long timestamp) {
+        java.time.Instant endTime = java.time.Instant.ofEpochMilli(timestamp);
+        java.time.Instant beginTime = endTime.minusSeconds(60);
+        BaseBar bar = new BaseBar(Duration.ofMinutes(1), beginTime, endTime, DoubleNum.valueOf(price),
+                DoubleNum.valueOf(price), DoubleNum.valueOf(price), DoubleNum.valueOf(price), DoubleNum.valueOf(100),
+                DoubleNum.valueOf(0), 1L); // 10 arguments
+        return new SymbolBar(symbol, bar);
+    }
+
     @Test
     void testNoAlertOnNormalFluctuation() {
         // Setup a window where price only fluctuated 2% (100 -> 102), threshold is 5%
         when(zSetOps.range(anyString(), any(Range.class)))
                 .thenReturn(Flux.just("100.0:1000", "101.0:2000", "102.0:3000"));
 
-        MarketTrade newTrade = new MarketTrade("AAPL", 102.0, 3000L);
-        when(ingestionService.getTradeStream()).thenReturn(Flux.just(newTrade));
+        SymbolBar newBar = createBar("AAPL", 102.0, 3000L);
+        when(ingestionService.getBarStream()).thenReturn(Flux.just(newBar));
 
         analysisService.setupAnalysis(); // triggers stream processing
 
@@ -83,8 +96,8 @@ class SlidingWindowAnalysisServiceTest {
 
         when(telegramAlertService.sendAlert(anyString())).thenReturn(Mono.empty());
 
-        MarketTrade newTrade = new MarketTrade("AAPL", 110.0, 3000L);
-        when(ingestionService.getTradeStream()).thenReturn(Flux.just(newTrade));
+        SymbolBar newBar = createBar("AAPL", 110.0, 3000L);
+        when(ingestionService.getBarStream()).thenReturn(Flux.just(newBar));
 
         analysisService.setupAnalysis();
 
@@ -109,8 +122,8 @@ class SlidingWindowAnalysisServiceTest {
 
         when(telegramAlertService.sendAlert(anyString())).thenReturn(Mono.empty());
 
-        MarketTrade newTrade = new MarketTrade("AAPL", 90.0, 3000L);
-        when(ingestionService.getTradeStream()).thenReturn(Flux.just(newTrade));
+        SymbolBar newBar = createBar("AAPL", 90.0, 3000L);
+        when(ingestionService.getBarStream()).thenReturn(Flux.just(newBar));
 
         analysisService.setupAnalysis();
 
@@ -133,8 +146,8 @@ class SlidingWindowAnalysisServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(Mono.just(false));
 
-        MarketTrade newTrade = new MarketTrade("AAPL", 110.0, 3000L);
-        when(ingestionService.getTradeStream()).thenReturn(Flux.just(newTrade));
+        SymbolBar newBar = createBar("AAPL", 110.0, 3000L);
+        when(ingestionService.getBarStream()).thenReturn(Flux.just(newBar));
 
         analysisService.setupAnalysis();
 

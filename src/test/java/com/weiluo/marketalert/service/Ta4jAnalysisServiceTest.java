@@ -1,7 +1,7 @@
 package com.weiluo.marketalert.service;
 
 import com.weiluo.marketalert.config.AppProperties;
-import com.weiluo.marketalert.service.MarketTradeAggregator.SymbolBar;
+import com.weiluo.marketalert.model.SymbolBar;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,8 +26,6 @@ class Ta4jAnalysisServiceTest {
     @Mock
     private StockDataIngestionService ingestionService;
     @Mock
-    private MarketTradeAggregator aggregator;
-    @Mock
     private TelegramAlertService telegramAlertService;
     @Mock
     private ReactiveStringRedisTemplate redisTemplate;
@@ -41,8 +39,7 @@ class Ta4jAnalysisServiceTest {
     void setUp() {
         properties = new AppProperties(List.of("AAPL"), null, new AppProperties.Ta4j(60, 14, 12, 26, 9), null, null);
 
-        analysisService = new Ta4jAnalysisService(ingestionService, aggregator, telegramAlertService, properties,
-                redisTemplate);
+        analysisService = new Ta4jAnalysisService(ingestionService, telegramAlertService, properties, redisTemplate);
     }
 
     @Test
@@ -50,8 +47,7 @@ class Ta4jAnalysisServiceTest {
         // Create 10 bars (less than MACD long + signal = 26 + 9 = 35 needed)
         Flux<SymbolBar> dummyBars = Flux.range(1, 10).map(i -> createBar("AAPL", 150.0 + i, i));
 
-        when(ingestionService.getTradeStream()).thenReturn(Flux.empty());
-        when(aggregator.aggregateToBars(any(), any())).thenReturn(dummyBars);
+        when(ingestionService.getBarStream()).thenReturn(dummyBars);
 
         analysisService.setupAnalysis();
 
