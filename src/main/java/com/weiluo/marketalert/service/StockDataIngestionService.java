@@ -36,13 +36,18 @@ public class StockDataIngestionService {
 
     @PostConstruct
     public void startIngestion() {
+        // Filter out test symbols so we don't spam Yahoo with invalid queries
+        List<String> validSymbols = properties.symbols().stream()
+                .filter(sym -> !sym.startsWith("TEST_"))
+                .toList();
+
         Flux.interval(Duration.ofSeconds(60))
-                .flatMap(tick -> Flux.fromIterable(properties.symbols())
+                .flatMap(tick -> Flux.fromIterable(validSymbols)
                         .delayElements(Duration.ofMillis(500))) // Stagger requests to stay under limits
                 .flatMap(this::fetchLatestCandle)
                 .subscribe(this::injectBar, error -> log.error("Error in Yahoo Finance polling loop: ", error));
 
-        log.info("Started Yahoo Finance REST Polling (1-min candles) for symbols: {}", properties.symbols());
+        log.info("Started Yahoo Finance REST Polling (1-min candles) for symbols: {}", validSymbols);
     }
 
     private Flux<SymbolBar> fetchLatestCandle(String symbol) {
