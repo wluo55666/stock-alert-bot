@@ -14,10 +14,10 @@ app:
   # Provide comma-separated symbols in the APP_SYMBOLS env var, e.g., APP_SYMBOLS=AAPL,MSFT
   symbols: ${APP_SYMBOLS:AAPL,MSFT,TSLA}
   sliding-window:
-    duration-seconds: 300
+    duration-seconds: 900
     threshold-percent: 0.05 # 5% change threshold
   ta4j:
-    bar-duration-seconds: 60 # 1 minute bars
+    bar-duration-seconds: 300 # 1 minute bars
     rsi-timeframe: 14
     macd-short: 12
     macd-long: 26
