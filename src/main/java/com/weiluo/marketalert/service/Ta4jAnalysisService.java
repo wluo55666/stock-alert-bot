@@ -66,7 +66,28 @@ public class Ta4jAnalysisService {
             return newSeries;
         });
 
-        series.addBar(symbolBar.bar());
+        synchronized (series) {
+            try {
+                if (series.isEmpty()) {
+                    series.addBar(symbolBar.bar());
+                } else {
+                    java.time.Instant lastEndTime = series.getLastBar().getEndTime();
+                    java.time.Instant newEndTime = symbolBar.bar().getEndTime();
+
+                    if (newEndTime.equals(lastEndTime)) {
+                        series.addBar(symbolBar.bar(), true); // replace current minute's bar
+                    } else if (newEndTime.isAfter(lastEndTime)) {
+                        series.addBar(symbolBar.bar());
+                    } else {
+                        // Ignore older bars
+                        return Mono.empty();
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                log.warn("Failed to add bar to series for {}: {}", symbol, e.getMessage());
+                return Mono.empty();
+            }
+        }
         int endIndex = series.getEndIndex();
 
         return analyze(symbol, series, endIndex);
