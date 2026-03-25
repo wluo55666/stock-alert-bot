@@ -109,11 +109,11 @@ public class Ta4jAnalysisService {
         // Corrected to use EMAIndicator directly after import
         EMAIndicator signalEMAMACD = new EMAIndicator(macd, properties.ta4j().macdSignal());
 
-        // Bullish Rule: MACD crosses up signal AND RSI < 70 (not overbought)
-        Rule bullishRule = new CrossedUpIndicatorRule(macd, signalEMAMACD).and(new UnderIndicatorRule(rsi, 70));
+        // Bullish Rule: MACD crosses up signal AND RSI < 45 (requires a significant drop before the bounce)
+        Rule bullishRule = new CrossedUpIndicatorRule(macd, signalEMAMACD).and(new UnderIndicatorRule(rsi, 45));
 
-        // Bearish Rule: MACD crosses down signal AND RSI > 30 (not oversold)
-        Rule bearishRule = new CrossedDownIndicatorRule(macd, signalEMAMACD).and(new OverIndicatorRule(rsi, 30));
+        // Bearish Rule: MACD crosses down signal AND RSI > 55 (requires a significant rally before the drop)
+        Rule bearishRule = new CrossedDownIndicatorRule(macd, signalEMAMACD).and(new OverIndicatorRule(rsi, 55));
 
         if (bullishRule.isSatisfied(index)) {
             return triggerAlert(symbol, "BULLISH 📈", closePrice.getValue(index).doubleValue(),
@@ -128,7 +128,7 @@ public class Ta4jAnalysisService {
 
     private Mono<Void> triggerAlert(String symbol, String signal, double currentPrice, double rsiValue) {
         String deduplicationKey = "ta4j_alert:" + symbol + ":" + signal;
-        Duration lockDuration = Duration.ofMinutes(5); // Throttle identical signals
+        Duration lockDuration = Duration.ofMinutes(60); // Throttles identical signals for 1 hour to reduce noise
 
         return redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration).flatMap(locked -> {
             if (Boolean.TRUE.equals(locked)) {
