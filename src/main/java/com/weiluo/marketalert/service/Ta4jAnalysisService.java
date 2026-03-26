@@ -109,11 +109,17 @@ public class Ta4jAnalysisService {
         // Corrected to use EMAIndicator directly after import
         EMAIndicator signalEMAMACD = new EMAIndicator(macd, properties.ta4j().macdSignal());
 
-        // Bullish Rule: MACD crosses up signal AND RSI < 60 (avoids buying at the very top of a run)
-        Rule bullishRule = new CrossedUpIndicatorRule(macd, signalEMAMACD).and(new UnderIndicatorRule(rsi, 60));
+        // Bullish Rule: MACD crosses up signal AND MACD is below zero (indicates a reversal from a downtrend) AND RSI > 30 AND RSI < 70
+        Rule bullishRule = new CrossedUpIndicatorRule(macd, signalEMAMACD)
+                .and(new UnderIndicatorRule(macd, 0))
+                .and(new OverIndicatorRule(rsi, 30))
+                .and(new UnderIndicatorRule(rsi, 70));
 
-        // Bearish Rule: MACD crosses down signal AND RSI > 40 (avoids shorting at the very bottom)
-        Rule bearishRule = new CrossedDownIndicatorRule(macd, signalEMAMACD).and(new OverIndicatorRule(rsi, 40));
+        // Bearish Rule: MACD crosses down signal AND MACD is above zero (indicates a reversal from an uptrend) AND RSI < 70 AND RSI > 30
+        Rule bearishRule = new CrossedDownIndicatorRule(macd, signalEMAMACD)
+                .and(new OverIndicatorRule(macd, 0))
+                .and(new UnderIndicatorRule(rsi, 70))
+                .and(new OverIndicatorRule(rsi, 30));
 
         if (bullishRule.isSatisfied(index)) {
             return triggerAlert(symbol, "BULLISH 📈", closePrice.getValue(index).doubleValue(),
