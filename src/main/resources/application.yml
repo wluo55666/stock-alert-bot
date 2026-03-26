@@ -17,7 +17,7 @@ app:
     duration-seconds: 300
     threshold-percent: 0.05 # 5% change threshold
   ta4j:
-    bar-duration-seconds: 60 # 1 minute bars
+    bar-duration-seconds: 300 # 5 minute bars (polling 1M data but letting it accumulate into 5M signals reduces chop)
     rsi-timeframe: 14
     macd-short: 12
     macd-long: 26
