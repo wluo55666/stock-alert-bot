@@ -17,7 +17,7 @@ app:
     duration-seconds: 300
     threshold-percent: 0.05 # 5% change threshold
   ta4j:
-    bar-duration-seconds: 300 # 5 minute bars
+    bar-duration-seconds: 900 # 15 minute bars for higher conviction signals
     rsi-timeframe: 14
     macd-short: 12
     macd-long: 26
