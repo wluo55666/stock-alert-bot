@@ -47,12 +47,12 @@ public class StockDataIngestionService {
                 .flatMap(this::fetchLatestCandle)
                 .subscribe(this::injectBar, error -> log.error("Error in Yahoo Finance polling loop: ", error));
 
-        log.info("Started Yahoo Finance REST Polling (1-min candles) for symbols: {}", validSymbols);
+        log.info("Started Yahoo Finance REST Polling (15-min candles) for symbols: {}", validSymbols);
     }
 
     private Flux<SymbolBar> fetchLatestCandle(String symbol) {
         return webClient.get()
-                .uri("/{symbol}?interval=5m&range=1d", symbol)
+                .uri("/{symbol}?interval=15m&range=5d", symbol)
                 .retrieve()
                 .bodyToMono(YahooResponse.class)
                 .flatMapMany(response -> {
@@ -80,9 +80,9 @@ public class StockDataIngestionService {
                         }
 
                         Instant beginTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
-                        Instant endTime = beginTime.plusSeconds(300); // 5-minute bar
+                        Instant endTime = beginTime.plusSeconds(900); // 15-minute bar
 
-                        BaseBar bar = new BaseBar(Duration.ofMinutes(5), beginTime, endTime,
+                        BaseBar bar = new BaseBar(Duration.ofMinutes(15), beginTime, endTime,
                                 DoubleNum.valueOf(quote.open().get(lastIdx)),
                                 DoubleNum.valueOf(quote.high().get(lastIdx)),
                                 DoubleNum.valueOf(quote.low().get(lastIdx)),
@@ -92,7 +92,7 @@ public class StockDataIngestionService {
                                 1L // Trade count approximation
                         );
 
-                        log.debug("Built 5M Bar for {}: {}", symbol, bar);
+                        log.debug("Built 15M Bar for {}: {}", symbol, bar);
                         return Flux.just(new SymbolBar(symbol, bar));
                     } catch (Exception e) {
                         log.warn("Failed to parse Yahoo Finance response for {}: {}", symbol, e.getMessage());
