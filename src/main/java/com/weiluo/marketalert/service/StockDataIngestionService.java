@@ -52,7 +52,7 @@ public class StockDataIngestionService {
 
     private Flux<SymbolBar> fetchLatestCandle(String symbol) {
         return webClient.get()
-                .uri("/{symbol}?interval=1m&range=5m", symbol)
+                .uri("/{symbol}?interval=5m&range=1d", symbol)
                 .retrieve()
                 .bodyToMono(YahooResponse.class)
                 .flatMapMany(response -> {
@@ -79,10 +79,10 @@ public class StockDataIngestionService {
                             return Flux.empty();
                         }
 
-                        Instant endTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
-                        Instant beginTime = endTime.minusSeconds(60);
+                        Instant beginTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
+                        Instant endTime = beginTime.plusSeconds(300); // 5-minute bar
 
-                        BaseBar bar = new BaseBar(Duration.ofMinutes(1), beginTime, endTime,
+                        BaseBar bar = new BaseBar(Duration.ofMinutes(5), beginTime, endTime,
                                 DoubleNum.valueOf(quote.open().get(lastIdx)),
                                 DoubleNum.valueOf(quote.high().get(lastIdx)),
                                 DoubleNum.valueOf(quote.low().get(lastIdx)),
@@ -92,7 +92,7 @@ public class StockDataIngestionService {
                                 1L // Trade count approximation
                         );
 
-                        log.debug("Built 1M Bar for {}: {}", symbol, bar);
+                        log.debug("Built 5M Bar for {}: {}", symbol, bar);
                         return Flux.just(new SymbolBar(symbol, bar));
                     } catch (Exception e) {
                         log.warn("Failed to parse Yahoo Finance response for {}: {}", symbol, e.getMessage());
