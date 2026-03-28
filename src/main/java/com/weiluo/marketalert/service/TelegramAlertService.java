@@ -15,7 +15,8 @@ public class TelegramAlertService {
 
     public TelegramAlertService(AppProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
-        this.restClient = restClientBuilder.baseUrl("https://api.telegram.org").build();
+        String baseUrl = properties.telegram() != null ? properties.telegram().resolvedBaseUrl() : "https://api.telegram.org";
+        this.restClient = restClientBuilder.baseUrl(baseUrl).build();
     }
 
     public void sendAlert(String message) {

@@ -12,6 +12,9 @@ public record AppProperties(List<String> symbols, SlidingWindow slidingWindow, T
         public record Ta4j(int barDurationSeconds, int rsiTimeframe, int macdShort, int macdLong, int macdSignal) {
         }
 
-        public record Telegram(String botToken, String chatId) {
+        public record Telegram(String botToken, String chatId, String apiBaseUrl) {
+                public String resolvedBaseUrl() {
+                        return (apiBaseUrl == null || apiBaseUrl.isBlank()) ? "https://api.telegram.org" : apiBaseUrl;
+                }
         }
 }
