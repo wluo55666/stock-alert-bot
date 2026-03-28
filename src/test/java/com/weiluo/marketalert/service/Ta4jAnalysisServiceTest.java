@@ -1,56 +1,38 @@
 package com.weiluo.marketalert.service;
-
 import com.weiluo.marketalert.config.AppProperties;
 import com.weiluo.marketalert.model.SymbolBar;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
-import org.springframework.data.redis.core.ReactiveValueOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.ta4j.core.BaseBar;
-import reactor.core.publisher.Flux;
-
 import java.time.Duration;
 import java.util.List;
-
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class Ta4jAnalysisServiceTest {
-
-    @Mock
-    private StockDataIngestionService ingestionService;
-    @Mock
-    private TelegramAlertService telegramAlertService;
-    @Mock
-    private ReactiveStringRedisTemplate redisTemplate;
-    @Mock
-    private ReactiveValueOperations<String, String> valueOps;
-
+    @Mock private TelegramAlertService telegramAlertService;
+    @Mock private StringRedisTemplate redisTemplate;
+    @Mock private ValueOperations<String, String> valueOps;
     private AppProperties properties;
     private Ta4jAnalysisService analysisService;
 
     @BeforeEach
     void setUp() {
         properties = new AppProperties(List.of("AAPL"), null, new AppProperties.Ta4j(60, 14, 12, 26, 9), null);
-
-        analysisService = new Ta4jAnalysisService(ingestionService, telegramAlertService, properties, redisTemplate);
+        analysisService = new Ta4jAnalysisService(telegramAlertService, properties, redisTemplate);
     }
 
     @Test
     void testNoAlertWhenNotEnoughBars() {
-        // Create 10 bars (less than MACD long + signal = 26 + 9 = 35 needed)
-        Flux<SymbolBar> dummyBars = Flux.range(1, 10).map(i -> createBar("AAPL", 150.0 + i, i));
-
-        when(ingestionService.getBarStream()).thenReturn(dummyBars);
-
-        analysisService.setupAnalysis();
-
+        for (int i = 1; i <= 10; i++) {
+            analysisService.processBar(createBar("AAPL", 150.0 + i, i));
+        }
         verify(telegramAlertService, never()).sendAlert(anyString());
     }
 
