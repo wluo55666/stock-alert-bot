@@ -1,6 +1,9 @@
 spring:
   application:
     name: stock-alert-bot
+  threads:
+    virtual:
+      enabled: true
   data:
     redis:
       host: localhost
@@ -11,13 +14,12 @@ logging:
     com.weiluo: DEBUG
 
 app:
-  # Provide comma-separated symbols in the APP_SYMBOLS env var, e.g., APP_SYMBOLS=AAPL,MSFT
   symbols: ${APP_SYMBOLS:AAPL,MSFT,TSLA}
   sliding-window:
     duration-seconds: 300
-    threshold-percent: 0.05 # 5% change threshold
+    threshold-percent: 0.05
   ta4j:
-    bar-duration-seconds: 900 # 15 minute bars for higher conviction signals
+    bar-duration-seconds: 900
     rsi-timeframe: 14
     macd-short: 12
     macd-long: 26
