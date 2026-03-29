@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
 import org.ta4j.core.BaseBarSeriesBuilder;
@@ -29,12 +30,14 @@ public class Ta4jAnalysisService {
     private final TelegramAlertService telegramAlertService;
     private final AppProperties properties;
     private final StringRedisTemplate redisTemplate;
+    private final SmartTradingAgent smartTradingAgent;
     private final Map<String, BarSeries> seriesMap = new ConcurrentHashMap<>();
 
-    public Ta4jAnalysisService(TelegramAlertService telegramAlertService, AppProperties properties, StringRedisTemplate redisTemplate) {
+    public Ta4jAnalysisService(TelegramAlertService telegramAlertService, AppProperties properties, StringRedisTemplate redisTemplate, SmartTradingAgent smartTradingAgent) {
         this.telegramAlertService = telegramAlertService;
         this.properties = properties;
         this.redisTemplate = redisTemplate;
+        this.smartTradingAgent = smartTradingAgent;
     }
 
     @PostConstruct
@@ -42,6 +45,7 @@ public class Ta4jAnalysisService {
         if (properties.ta4j() == null) log.warn("ta4j config missing. Advanced technical analysis disabled.");
     }
 
+    @Async
     @EventListener
     public void processBar(SymbolBar symbolBar) {
         if (properties.ta4j() == null) return;
@@ -96,9 +100,9 @@ public class Ta4jAnalysisService {
         Duration lockDuration = Duration.ofMinutes(30);
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
-            String message = String.format("📊 <b>%s Swing Trade Alert!</b>\n\n🔹 <b>Direction:</b> %s\n🔹 <b>Current Price:</b> $%.2f\n🔹 <b>RSI Strength:</b> %.2f/100\n\n💡 <b>What this means:</b> <i>%s</i>", symbol, signal, currentPrice, rsiValue, explanation);
+            String aiMessage = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, explanation);
             log.info("Triggering ta4j alert for {}: {}", symbol, signal);
-            telegramAlertService.sendAlert(message);
+            telegramAlertService.sendAlert(aiMessage);
         } else {
             log.debug("TA alert for {} recently sent. Deduplicating.", symbol);
         }

@@ -18,6 +18,10 @@ repositories {
 }
 
 dependencies {
+    implementation(platform("dev.langchain4j:langchain4j-bom:1.0.0"))
+    implementation("dev.langchain4j:langchain4j-spring-boot-starter")
+    implementation("dev.langchain4j:langchain4j-google-ai-gemini-spring-boot-starter:1.0.0-beta5")
+    implementation("dev.langchain4j:langchain4j-web-search-engine-tavily")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.ta4j:ta4j-core:0.22.3")

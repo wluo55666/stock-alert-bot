@@ -21,7 +21,7 @@ class TelegramAlertServiceTest {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
         String baseUrl = mockWebServer.url("/").toString();
-        properties = new AppProperties(null, null, null, new AppProperties.Telegram("test_bot_token", "test_chat_id", baseUrl));
+        properties = new AppProperties(null, null, null, new AppProperties.Telegram("test_bot_token", "test_chat_id", baseUrl), null);
         RestClient.Builder builder = RestClient.builder();
         telegramAlertService = new TelegramAlertService(properties, builder);
     }
