@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,7 @@ public class SlidingWindowAnalysisService {
         if (properties.slidingWindow() == null) log.warn("Sliding window config missing. Analysis disabled.");
     }
 
+    @Async
     @EventListener
     public void processBar(SymbolBar symbolBar) {
         if (properties.slidingWindow() == null) return;
