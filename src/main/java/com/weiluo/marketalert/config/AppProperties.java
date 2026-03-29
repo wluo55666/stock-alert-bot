@@ -12,7 +12,7 @@ public record AppProperties(List<String> symbols, SlidingWindow slidingWindow, T
         public record Ta4j(int barDurationSeconds, int rsiTimeframe, int macdShort, int macdLong, int macdSignal) {
         }
 
-        public record Ai(String geminiApiKey, String tavilyApiKey) {
+        public record Ai(String tavilyApiKey) {
         }
 
         public record Telegram(String botToken, String chatId, String apiBaseUrl) {

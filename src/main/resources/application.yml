@@ -30,7 +30,6 @@ app:
     api-base-url: ${TELEGRAM_API_BASE_URL:https://api.telegram.org}
   ai:
     tavily-api-key: ${TAVILY_API_KEY:}
-    gemini-api-key: ${GEMINI_API_KEY:}
 langchain4j:
   google-ai-gemini:
     chat-model:
