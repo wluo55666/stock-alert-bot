@@ -9,6 +9,7 @@ import dev.langchain4j.web.search.tavily.TavilyWebSearchEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.stream.Collectors;
 
@@ -18,6 +19,7 @@ public class MarketNewsTool {
     private static final Logger log = LoggerFactory.getLogger(MarketNewsTool.class);
     private final WebSearchEngine webSearchEngine;
 
+    @Autowired
     public MarketNewsTool(AppProperties properties) {
         String apiKey = properties.ai() != null ? properties.ai().tavilyApiKey() : null;
         if (apiKey == null || apiKey.isBlank()) {
