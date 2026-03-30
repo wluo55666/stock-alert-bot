@@ -26,6 +26,12 @@ jobs:
       # ---------------------------
 
       - name: Deploy via Docker Compose
+        env:
+          APP_SYMBOLS: ${{ secrets.APP_SYMBOLS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
           mkdir -p $HOME/.docker-ci-temp
           echo '{"auths": {}}' > $HOME/.docker-ci-temp/config.json
