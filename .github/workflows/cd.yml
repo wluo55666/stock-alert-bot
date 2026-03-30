@@ -8,6 +8,7 @@ jobs:
   deploy:
     name: Build and Run Locally
     runs-on: self-hosted # This targets your idle machine!
+    environment: Local
 
     steps:
       - name: Checkout Code
