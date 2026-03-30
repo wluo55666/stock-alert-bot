@@ -4,7 +4,7 @@ Professional-grade market monitoring built with **Java 24**, **Spring Boot 3.4**
 
 ## ✨ Features
 - **Real-time Monitoring:** Yahoo Finance 15-minute candle polling.
-- **Smart Alerts:** **Gemini 3,0 Flash** powered analysis.
+- **Smart Alerts:** **Gemini 3.0 Flash** powered analysis.
 - **Market News:** Real-time context via **Tavily Web Search**.
 - **Performance:** Native Java 24 Virtual Threads.
 
