@@ -66,7 +66,7 @@ public class SlidingWindowAnalysisService {
 
     private void triggerAlert(String symbol, double minPrice, double maxPrice, double percentChange, String direction) {
         String deduplicationKey = "alert:" + symbol;
-        Duration lockDuration = Duration.ofMinutes(1);
+        Duration lockDuration = Duration.ofSeconds(properties.slidingWindow().durationSeconds());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
             String message = String.format("🚨 <b>%s Price %s!</b>\n\n🔹 <b>Change:</b> %.2f%%\n🔹 <b>Min Price:</b> $%.2f\n🔹 <b>Max Price:</b> $%.2f\n💡 <i>Sudden price movement detected.</i>", symbol, direction, percentChange * 100, minPrice, maxPrice);
