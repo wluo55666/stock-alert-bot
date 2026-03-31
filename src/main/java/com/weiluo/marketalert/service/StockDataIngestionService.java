@@ -13,6 +13,8 @@ import org.ta4j.core.num.DoubleNum;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class StockDataIngestionService {
@@ -20,6 +22,7 @@ public class StockDataIngestionService {
     private final AppProperties properties;
     private final RestClient restClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final Map<String, Instant> lastPublishedBarEndBySymbol = new ConcurrentHashMap<>();
     private List<String> validSymbols;
 
     public StockDataIngestionService(AppProperties properties, RestClient.Builder restClientBuilder, ApplicationEventPublisher eventPublisher) {
@@ -42,7 +45,7 @@ public class StockDataIngestionService {
         for (String symbol : validSymbols) {
             try {
                 SymbolBar bar = fetchLatestCandle(symbol);
-                if (bar != null) {
+                if (bar != null && shouldPublish(symbol, bar)) {
                     injectBar(bar);
                 }
                 Thread.sleep(500); // Stagger requests
@@ -86,6 +89,22 @@ public class StockDataIngestionService {
 
     public void injectBar(SymbolBar bar) {
         eventPublisher.publishEvent(bar);
+    }
+
+    private boolean shouldPublish(String symbol, SymbolBar bar) {
+        Instant newEndTime = bar.bar().getEndTime();
+        Instant previousEndTime = lastPublishedBarEndBySymbol.putIfAbsent(symbol, newEndTime);
+        if (previousEndTime == null) {
+            log.debug("Publishing first completed 15M bar for {} ending at {}", symbol, newEndTime);
+            return true;
+        }
+        if (newEndTime.isAfter(previousEndTime)) {
+            lastPublishedBarEndBySymbol.put(symbol, newEndTime);
+            log.debug("Publishing new completed 15M bar for {} ending at {}", symbol, newEndTime);
+            return true;
+        }
+        log.debug("Skipping duplicate in-progress snapshot for {} ending at {}", symbol, newEndTime);
+        return false;
     }
 
     private boolean isIncompleteBar(Quote quote, int index) {
