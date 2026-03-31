@@ -1,15 +1,17 @@
 package com.weiluo.marketalert.service;
+
 import com.weiluo.marketalert.config.AppProperties;
 import com.weiluo.marketalert.model.SymbolBar;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.context.ApplicationEventPublisher;
 import org.ta4j.core.BaseBar;
 import org.ta4j.core.num.DoubleNum;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -23,6 +25,7 @@ public class StockDataIngestionService {
     private final RestClient restClient;
     private final ApplicationEventPublisher eventPublisher;
     private final Map<String, Instant> lastPublishedBarEndBySymbol = new ConcurrentHashMap<>();
+    private final Map<String, Instant> lastObservedBarEndBySymbol = new ConcurrentHashMap<>();
     private List<String> validSymbols;
 
     public StockDataIngestionService(AppProperties properties, RestClient.Builder restClientBuilder, ApplicationEventPublisher eventPublisher) {
@@ -75,6 +78,9 @@ public class StockDataIngestionService {
             }
             Instant beginTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
             Instant endTime = beginTime.plusSeconds(900);
+            if (isStaleObservation(symbol, endTime)) {
+                return null;
+            }
             BaseBar bar = new BaseBar(Duration.ofMinutes(15), beginTime, endTime,
                     DoubleNum.valueOf(quote.open().get(lastIdx)), DoubleNum.valueOf(quote.high().get(lastIdx)),
                     DoubleNum.valueOf(quote.low().get(lastIdx)), DoubleNum.valueOf(quote.close().get(lastIdx)),
@@ -104,6 +110,15 @@ public class StockDataIngestionService {
             return true;
         }
         log.debug("Skipping duplicate in-progress snapshot for {} ending at {}", symbol, newEndTime);
+        return false;
+    }
+
+    private boolean isStaleObservation(String symbol, Instant endTime) {
+        Instant previousObserved = lastObservedBarEndBySymbol.put(symbol, endTime);
+        if (previousObserved != null && !endTime.isAfter(previousObserved)) {
+            log.debug("No newer completed candle for {} since {}", symbol, previousObserved);
+            return true;
+        }
         return false;
     }
 

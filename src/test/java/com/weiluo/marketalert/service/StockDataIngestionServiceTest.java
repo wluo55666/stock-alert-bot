@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -76,11 +77,30 @@ class StockDataIngestionServiceTest {
         verify(eventPublisher, times(2)).publishEvent(org.mockito.ArgumentMatchers.any(SymbolBar.class));
     }
 
+    @Test
+    void testStaleObservationShouldBeDetected() {
+        Instant endTime = Instant.now();
+        assertFalse(invokeIsStaleObservation("AAPL", endTime));
+        assertFalse(invokeIsStaleObservation("AAPL", endTime.plus(Duration.ofMinutes(15))));
+        boolean stale = invokeIsStaleObservation("AAPL", endTime.plus(Duration.ofMinutes(15)));
+        assertEquals(true, stale);
+    }
+
     private boolean invokeShouldPublish(String symbol, SymbolBar bar) {
         try {
             var method = StockDataIngestionService.class.getDeclaredMethod("shouldPublish", String.class, SymbolBar.class);
             method.setAccessible(true);
             return (boolean) method.invoke(service, symbol, bar);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean invokeIsStaleObservation(String symbol, Instant endTime) {
+        try {
+            var method = StockDataIngestionService.class.getDeclaredMethod("isStaleObservation", String.class, Instant.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(service, symbol, endTime);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
