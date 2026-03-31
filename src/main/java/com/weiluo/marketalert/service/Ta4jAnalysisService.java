@@ -1,13 +1,14 @@
 package com.weiluo.marketalert.service;
+
 import com.weiluo.marketalert.config.AppProperties;
 import com.weiluo.marketalert.model.SymbolBar;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Service;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
 import org.ta4j.core.BaseBarSeriesBuilder;
@@ -15,11 +16,12 @@ import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
-import org.ta4j.core.rules.CrossedUpIndicatorRule;
+import org.ta4j.core.Rule;
 import org.ta4j.core.rules.CrossedDownIndicatorRule;
+import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.OverIndicatorRule;
 import org.ta4j.core.rules.UnderIndicatorRule;
-import org.ta4j.core.Rule;
+
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,26 +83,45 @@ public class Ta4jAnalysisService {
 
     private void analyze(String symbol, BarSeries series, int index) {
         if (series.getBarCount() < properties.ta4j().macdLong() + properties.ta4j().macdSignal()) return;
+
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
         RSIIndicator rsi = new RSIIndicator(closePrice, properties.ta4j().rsiTimeframe());
         MACDIndicator macd = new MACDIndicator(closePrice, properties.ta4j().macdShort(), properties.ta4j().macdLong());
         EMAIndicator signalEMAMACD = new EMAIndicator(macd, properties.ta4j().macdSignal());
-        Rule bullishRule = new CrossedUpIndicatorRule(macd, signalEMAMACD).and(new UnderIndicatorRule(macd, 0)).and(new UnderIndicatorRule(rsi, 70));
-        Rule bearishRule = new CrossedDownIndicatorRule(macd, signalEMAMACD).and(new OverIndicatorRule(macd, 0)).and(new OverIndicatorRule(rsi, 30));
 
-        if (bullishRule.isSatisfied(index)) {
-            triggerAlert(symbol, "BULLISH 📈", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), "Reversal from a downtrend detected! The stock has been selling off but just caught a strong upward bounce on the 15-minute chart. RSI confirms it is not overbought yet.");
-        } else if (bearishRule.isSatisfied(index)) {
-            triggerAlert(symbol, "BEARISH 📉", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), "Rejection from an uptrend detected! The stock was rallying but just lost momentum and crossed downward on the 15-minute chart. RSI confirms it is not oversold yet.");
+        Rule bullishRule = new CrossedUpIndicatorRule(macd, signalEMAMACD)
+                .and(new UnderIndicatorRule(macd, 0))
+                .and(new UnderIndicatorRule(rsi, 70));
+        Rule bearishRule = new CrossedDownIndicatorRule(macd, signalEMAMACD)
+                .and(new OverIndicatorRule(macd, 0))
+                .and(new OverIndicatorRule(rsi, 30));
+
+        if (bullishRule.isSatisfied(index) && hasDirectionalConfirmation(closePrice, index, true, properties.ta4j().confirmationBars())) {
+            triggerAlert(symbol, "BULLISH REVERSAL 📈", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), properties.ta4j().confirmationBars(), "MACD crossed above signal below zero, with RSI still below overbought. This suggests a potential reversal with early momentum confirmation.");
+        } else if (bearishRule.isSatisfied(index) && hasDirectionalConfirmation(closePrice, index, false, properties.ta4j().confirmationBars())) {
+            triggerAlert(symbol, "BEARISH REVERSAL 📉", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), properties.ta4j().confirmationBars(), "MACD crossed below signal above zero, with RSI still above oversold. This suggests fading upside momentum and a potential downside reversal.");
         }
     }
 
-    private void triggerAlert(String symbol, String signal, double currentPrice, double rsiValue, String explanation) {
-        String deduplicationKey = "ta4j_alert:" + symbol + ":" + signal;
-        Duration lockDuration = Duration.ofMinutes(30);
+    private boolean hasDirectionalConfirmation(ClosePriceIndicator closePrice, int index, boolean bullish, int confirmationBars) {
+        if (confirmationBars <= 1) return true;
+        if (index - confirmationBars + 1 < 1) return false;
+
+        for (int i = index; i > index - confirmationBars + 1; i--) {
+            double current = closePrice.getValue(i).doubleValue();
+            double previous = closePrice.getValue(i - 1).doubleValue();
+            if (bullish && current <= previous) return false;
+            if (!bullish && current >= previous) return false;
+        }
+        return true;
+    }
+
+    private void triggerAlert(String symbol, String signal, double currentPrice, double rsiValue, int confirmationBars, String explanation) {
+        String deduplicationKey = "ta4j_alert:" + symbol;
+        Duration lockDuration = Duration.ofMinutes(properties.ta4j().cooldownMinutes());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
-            String aiMessage = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, explanation);
+            String aiMessage = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, confirmationBars, explanation);
             log.info("Triggering ta4j alert for {}: {}", symbol, signal);
             telegramAlertService.sendAlert(aiMessage);
         } else {

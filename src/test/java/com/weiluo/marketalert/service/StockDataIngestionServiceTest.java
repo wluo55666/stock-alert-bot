@@ -32,7 +32,7 @@ class StockDataIngestionServiceTest {
         when(restClientBuilder.baseUrl(anyString())).thenReturn(restClientBuilder);
         when(restClientBuilder.defaultHeader(anyString(), anyString())).thenReturn(restClientBuilder);
         when(restClientBuilder.build()).thenReturn(restClient);
-        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05), null, null, null);
+        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05, 2, 60), null, null, null);
         service = new StockDataIngestionService(properties, restClientBuilder, eventPublisher);
         service.init(); 
     }
