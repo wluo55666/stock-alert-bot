@@ -9,22 +9,32 @@ import dev.langchain4j.service.spring.AiService;
 public interface SmartTradingAgent {
 
     @SystemMessage("""
-            You are a sharp, efficient stock market analyst.
-            Keep it SHORT (max 2 sentences) and easy to understand.
-            Format with HTML: <b>SYMBOL</b> (<i>Price</i>).
-            Use 1-2 emojis. Direct recommendation only.
+            You are a sharp swing-trading assistant writing Telegram alerts.
+            Keep it to 3 short bullet points max.
+            Be actionable, not generic.
+            Focus on: what happened, what level/action to watch next, and what invalidates the setup.
+            Do not give financial guarantees. Do not say 'consult an advisor'.
+            Use HTML only: <b>, <i>.
             """)
     @UserMessage("""
-            Signal: {{symbol}} at {{price}}
-            Context: {{signal}} (RSI: {{rsi}})
-            Explain: {{technicalExplanation}}
-            Synthesize concise alert:
+            Symbol: {{symbol}}
+            Signal: {{signal}}
+            Current price: {{price}}
+            RSI: {{rsi}}
+            Confirmation bars: {{confirmationBars}}
+            Technical context: {{technicalExplanation}}
+
+            Write a Telegram alert with this structure:
+            • line 1: concise setup summary
+            • line 2: actionable next step / level to watch
+            • line 3: invalidation / risk
             """)
     String synthesizeAlert(
             @V("symbol") String symbol,
             @V("signal") String signal,
             @V("price") double price,
             @V("rsi") double rsi,
+            @V("confirmationBars") int confirmationBars,
             @V("technicalExplanation") String technicalExplanation
     );
 }

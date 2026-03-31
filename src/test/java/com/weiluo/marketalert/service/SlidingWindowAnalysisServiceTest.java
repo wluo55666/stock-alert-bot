@@ -1,4 +1,5 @@
 package com.weiluo.marketalert.service;
+
 import com.weiluo.marketalert.config.AppProperties;
 import com.weiluo.marketalert.model.SymbolBar;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,11 +13,19 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.ta4j.core.BaseBar;
 import org.ta4j.core.num.DoubleNum;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SlidingWindowAnalysisServiceTest {
@@ -29,7 +38,7 @@ class SlidingWindowAnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05), null, null, null);
+        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.02, 2, 60), null, null, null);
         when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
         when(zSetOps.add(anyString(), anyString(), anyDouble())).thenReturn(true);
         when(zSetOps.removeRangeByScore(anyString(), anyDouble(), anyDouble())).thenReturn(1L);
@@ -47,22 +56,22 @@ class SlidingWindowAnalysisServiceTest {
 
     @Test
     void testNoAlertOnNormalFluctuation() {
-        when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "101.0:2000", "102.0:3000"));
-        analysisService.processBar(createBar("AAPL", 102.0, 3000L));
+        when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "100.4:2000", "100.8:3000"));
+        analysisService.processBar(createBar("AAPL", 100.8, 3000L));
         verify(telegramAlertService, never()).sendAlert(anyString());
     }
 
     @Test
-    void testAlertOnSpike() {
-        when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "105.0:2000", "110.0:3000"));
+    void testAlertOnDirectionalBreakout() {
+        when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "101.5:2000", "103.0:3000"));
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
-        
-        analysisService.processBar(createBar("AAPL", 110.0, 3000L));
+
+        analysisService.processBar(createBar("AAPL", 103.0, 3000L));
 
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
         verify(telegramAlertService, times(1)).sendAlert(messageCaptor.capture());
         String sentMessage = messageCaptor.getValue();
-        assert(sentMessage.contains("SPIKE"));
+        assert(sentMessage.contains("BREAKOUT"));
     }
 }

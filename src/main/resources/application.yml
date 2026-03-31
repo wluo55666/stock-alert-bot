@@ -17,13 +17,17 @@ app:
   symbols: ${APP_SYMBOLS:AAPL,MSFT,TSLA}
   sliding-window:
     duration-seconds: 300
-    threshold-percent: 0.05
+    threshold-percent: 0.02
+    confirmation-bars: 2
+    cooldown-minutes: 60
   ta4j:
     bar-duration-seconds: 900
     rsi-timeframe: 14
     macd-short: 12
     macd-long: 26
     macd-signal: 9
+    confirmation-bars: 2
+    cooldown-minutes: 60
   telegram:
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     chat-id: ${TELEGRAM_CHAT_ID:}
