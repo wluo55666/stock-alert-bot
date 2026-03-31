@@ -64,9 +64,13 @@ public class SlidingWindowAnalysisService {
         double threshold = properties.slidingWindow().thresholdPercent();
         if (Math.abs(analysis.netPercentChange()) < threshold) return;
         if (analysis.confirmationCount() < properties.slidingWindow().confirmationBars()) return;
+        if (analysis.score() < properties.slidingWindow().minimumScore()) {
+            log.debug("Suppressing sliding-window alert for {} because score {} is below minimum {}", symbol, analysis.score(), properties.slidingWindow().minimumScore());
+            return;
+        }
 
         String direction = analysis.netPercentChange() > 0 ? "BREAKOUT" : "BREAKDOWN";
-        triggerAlert(symbol, analysis.startPrice(), currentPrice, analysis.netPercentChange(), direction, analysis.confirmationCount());
+        triggerAlert(symbol, analysis.startPrice(), currentPrice, analysis.netPercentChange(), direction, analysis.confirmationCount(), analysis.score());
     }
 
     private WindowAnalysis buildAnalysis(List<String> window, double currentPrice) {
@@ -85,7 +89,18 @@ public class SlidingWindowAnalysisService {
 
         double netPercentChange = (currentPrice - startPrice) / startPrice;
         int confirmationCount = countDirectionalConfirmation(points);
-        return new WindowAnalysis(startPrice, netPercentChange, confirmationCount);
+        int score = scoreSignal(netPercentChange, confirmationCount);
+        return new WindowAnalysis(startPrice, netPercentChange, confirmationCount, score);
+    }
+
+    private int scoreSignal(double netPercentChange, int confirmationCount) {
+        int score = 0;
+        double absoluteChange = Math.abs(netPercentChange);
+        if (absoluteChange >= properties.slidingWindow().thresholdPercent()) score++;
+        if (absoluteChange >= properties.slidingWindow().strongMovePercent()) score++;
+        if (confirmationCount >= properties.slidingWindow().confirmationBars()) score++;
+        if (confirmationCount >= properties.slidingWindow().confirmationBars() + 1) score++;
+        return score;
     }
 
     private WindowPoint parsePoint(String item) {
@@ -118,22 +133,23 @@ public class SlidingWindowAnalysisService {
         return confirmation;
     }
 
-    private void triggerAlert(String symbol, double startPrice, double currentPrice, double percentChange, String direction, int confirmationCount) {
+    private void triggerAlert(String symbol, double startPrice, double currentPrice, double percentChange, String direction, int confirmationCount, int score) {
         String deduplicationKey = "alert:" + symbol;
         Duration lockDuration = Duration.ofMinutes(properties.slidingWindow().cooldownMinutes());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
             String message = String.format(
-                    "🚨 <b>%s %s</b>\n\n🔹 <b>Move:</b> %.2f%% in last %d min\n🔹 <b>From:</b> $%.2f → <b>Now:</b> $%.2f\n🔹 <b>Confirmation:</b> %d bar(s) same direction\n💡 <i>Action:</i> Watch for follow-through before chasing.",
+                    "🚨 <b>%s %s</b>\n\n🔹 <b>Move:</b> %.2f%% in last %d min\n🔹 <b>From:</b> $%.2f → <b>Now:</b> $%.2f\n🔹 <b>Confirmation:</b> %d bar(s) same direction\n🔹 <b>Score:</b> %d/4\n💡 <i>Action:</i> Watch for follow-through before chasing.",
                     symbol,
                     direction,
                     percentChange * 100,
                     properties.slidingWindow().durationSeconds() / 60,
                     startPrice,
                     currentPrice,
-                    confirmationCount
+                    confirmationCount,
+                    score
             );
-            log.info("Triggering sliding-window alert for {}: {} {}", symbol, direction, percentChange);
+            log.info("Triggering sliding-window alert for {}: {} {} (score={})", symbol, direction, percentChange, score);
             telegramAlertService.sendAlert(message);
         } else {
             log.debug("Alert for {} recently sent. Deduplicating.", symbol);
@@ -143,6 +159,6 @@ public class SlidingWindowAnalysisService {
     private record WindowPoint(double price, long timestamp) {
     }
 
-    private record WindowAnalysis(double startPrice, double netPercentChange, int confirmationCount) {
+    private record WindowAnalysis(double startPrice, double netPercentChange, int confirmationCount, int score) {
     }
 }

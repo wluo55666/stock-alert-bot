@@ -13,6 +13,7 @@ public interface SmartTradingAgent {
             Keep it to 3 short bullet points max.
             Be actionable, not generic.
             Focus on: what happened, what level/action to watch next, and what invalidates the setup.
+            Mention signal quality briefly when it matters.
             Do not give financial guarantees. Do not say 'consult an advisor'.
             Use HTML only: <b>, <i>.
             """)
@@ -22,6 +23,7 @@ public interface SmartTradingAgent {
             Current price: {{price}}
             RSI: {{rsi}}
             Confirmation bars: {{confirmationBars}}
+            Signal score: {{score}}/4
             Technical context: {{technicalExplanation}}
 
             Write a Telegram alert with this structure:
@@ -35,6 +37,7 @@ public interface SmartTradingAgent {
             @V("price") double price,
             @V("rsi") double rsi,
             @V("confirmationBars") int confirmationBars,
+            @V("score") int score,
             @V("technicalExplanation") String technicalExplanation
     );
 }
