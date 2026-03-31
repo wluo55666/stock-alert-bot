@@ -1,4 +1,5 @@
 package com.weiluo.marketalert.service;
+
 import com.weiluo.marketalert.config.AppProperties;
 import com.weiluo.marketalert.model.SymbolBar;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,11 +12,14 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.client.RestClient;
 import org.ta4j.core.BaseBar;
 import org.ta4j.core.num.DoubleNum;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,7 +38,7 @@ class StockDataIngestionServiceTest {
         when(restClientBuilder.build()).thenReturn(restClient);
         properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.05, 2, 60), null, null, null);
         service = new StockDataIngestionService(properties, restClientBuilder, eventPublisher);
-        service.init(); 
+        service.init();
     }
 
     @Test
@@ -50,5 +54,43 @@ class StockDataIngestionServiceTest {
         ArgumentCaptor<SymbolBar> captor = ArgumentCaptor.forClass(SymbolBar.class);
         verify(eventPublisher).publishEvent(captor.capture());
         assertEquals("AAPL", captor.getValue().symbol());
+    }
+
+    @Test
+    void testDuplicateBarSnapshotsShouldOnlyPublishOnce() {
+        Instant endTime = Instant.now();
+        SymbolBar first = createBar("AAPL", 150.0, endTime);
+        SymbolBar duplicate = createBar("AAPL", 151.0, endTime);
+        SymbolBar next = createBar("AAPL", 152.0, endTime.plus(Duration.ofMinutes(15)));
+
+        if (invokeShouldPublish("AAPL", first)) {
+            service.injectBar(first);
+        }
+        if (invokeShouldPublish("AAPL", duplicate)) {
+            service.injectBar(duplicate);
+        }
+        if (invokeShouldPublish("AAPL", next)) {
+            service.injectBar(next);
+        }
+
+        verify(eventPublisher, times(2)).publishEvent(org.mockito.ArgumentMatchers.any(SymbolBar.class));
+    }
+
+    private boolean invokeShouldPublish(String symbol, SymbolBar bar) {
+        try {
+            var method = StockDataIngestionService.class.getDeclaredMethod("shouldPublish", String.class, SymbolBar.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(service, symbol, bar);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private SymbolBar createBar(String symbol, double price, Instant endTime) {
+        Instant beginTime = endTime.minus(Duration.ofMinutes(15));
+        BaseBar bar = new BaseBar(Duration.ofMinutes(15), beginTime, endTime, DoubleNum.valueOf(price),
+                DoubleNum.valueOf(price), DoubleNum.valueOf(price), DoubleNum.valueOf(price), DoubleNum.valueOf(1000),
+                DoubleNum.valueOf(0), 1L);
+        return new SymbolBar(symbol, bar);
     }
 }
