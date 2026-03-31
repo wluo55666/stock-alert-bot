@@ -20,11 +20,13 @@ public class SlidingWindowAnalysisService {
     private final StringRedisTemplate redisTemplate;
     private final TelegramAlertService telegramAlertService;
     private final AppProperties properties;
+    private final SmartTradingAgent smartTradingAgent;
 
-    public SlidingWindowAnalysisService(StringRedisTemplate redisTemplate, TelegramAlertService telegramAlertService, AppProperties properties) {
+    public SlidingWindowAnalysisService(StringRedisTemplate redisTemplate, TelegramAlertService telegramAlertService, AppProperties properties, SmartTradingAgent smartTradingAgent) {
         this.redisTemplate = redisTemplate;
         this.telegramAlertService = telegramAlertService;
         this.properties = properties;
+        this.smartTradingAgent = smartTradingAgent;
     }
 
     @PostConstruct
@@ -69,9 +71,13 @@ public class SlidingWindowAnalysisService {
         Duration lockDuration = Duration.ofSeconds(properties.slidingWindow().durationSeconds());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
-            String message = String.format("🚨 <b>%s Price %s!</b>\n\n🔹 <b>Change:</b> %.2f%%\n🔹 <b>Min Price:</b> $%.2f\n🔹 <b>Max Price:</b> $%.2f\n💡 <i>Sudden price movement detected.</i>", symbol, direction, percentChange * 100, minPrice, maxPrice);
+            double currentPrice = direction.equals("SPIKE") ? maxPrice : minPrice;
+            String explanation = String.format("A sudden price %s of %.2f%% was detected in a %d-second sliding window.",
+                    direction.toLowerCase(), percentChange * 100, properties.slidingWindow().durationSeconds());
+            String aiMessage = smartTradingAgent.synthesizeAlert(symbol, direction, currentPrice, 0.0, explanation);
+
             log.info("Triggering alert for {}: {} {}", symbol, direction, percentChange);
-            telegramAlertService.sendAlert(message);
+            telegramAlertService.sendAlert(aiMessage);
         } else {
             log.debug("Alert for {} recently sent. Deduplicating.", symbol);
         }
