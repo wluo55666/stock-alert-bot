@@ -16,10 +16,10 @@ import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+import org.ta4j.core.Rule;
 import org.ta4j.core.rules.CrossedDownIndicatorRule;
 import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.OverIndicatorRule;
-import org.ta4j.core.rules.Rule;
 import org.ta4j.core.rules.UnderIndicatorRule;
 
 import java.time.Duration;
