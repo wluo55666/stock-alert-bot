@@ -38,7 +38,7 @@ class SlidingWindowAnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.02, 2, 60), null, null, null);
+        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.02, 2, 60, 0.035, 3), null, null, null);
         when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
         when(zSetOps.add(anyString(), anyString(), anyDouble())).thenReturn(true);
         when(zSetOps.removeRangeByScore(anyString(), anyDouble(), anyDouble())).thenReturn(1L);
@@ -62,16 +62,25 @@ class SlidingWindowAnalysisServiceTest {
     }
 
     @Test
-    void testAlertOnDirectionalBreakout() {
-        when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "101.5:2000", "103.0:3000"));
+    void testSuppressWeakBreakoutBelowMinimumScore() {
+        when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "101.2:2000", "102.1:3000"));
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        analysisService.processBar(createBar("AAPL", 102.1, 3000L));
+        verify(telegramAlertService, never()).sendAlert(anyString());
+    }
+
+    @Test
+    void testAlertOnStrongDirectionalBreakout() {
+        when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "102.0:2000", "104.5:3000", "106.0:4000"));
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
 
-        analysisService.processBar(createBar("AAPL", 103.0, 3000L));
+        analysisService.processBar(createBar("AAPL", 106.0, 4000L));
 
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
         verify(telegramAlertService, times(1)).sendAlert(messageCaptor.capture());
         String sentMessage = messageCaptor.getValue();
         assert(sentMessage.contains("BREAKOUT"));
+        assert(sentMessage.contains("Score"));
     }
 }
