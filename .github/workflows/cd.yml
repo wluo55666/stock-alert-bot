@@ -6,27 +6,24 @@ on:
 
 jobs:
   deploy:
-    name: Build and Run Locally
-    runs-on: self-hosted # This targets your idle machine!
+    name: Build, Deploy, and Verify Locally
+    runs-on: self-hosted
     environment: Local
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # --- UPDATED FOR JAVA 24 ---
       - name: Set up JDK 24
         uses: actions/setup-java@v4
         with:
           java-version: '24'
-          distribution: 'temurin' 
+          distribution: 'temurin'
 
       - name: Build the JAR file
-        # Compiles the Java 24 code and creates the .jar so Docker can find it
-        run: ./gradlew build -x test 
-      # ---------------------------
+        run: ./gradlew build -x test
 
-      - name: Deploy via Docker Compose
+      - name: Write deploy env file
         env:
           APP_SYMBOLS: ${{ secrets.APP_SYMBOLS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -34,16 +31,39 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
-          mkdir -p $HOME/.docker-ci-temp
-          echo '{"auths": {}}' > $HOME/.docker-ci-temp/config.json
-          export DOCKER_CONFIG=$HOME/.docker-ci-temp
-          
-          echo "APP_SYMBOLS=${APP_SYMBOLS}" > .env
-          echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}" >> .env
-          echo "TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}" >> .env
-          echo "GEMINI_API_KEY=${GEMINI_API_KEY}" >> .env
-          echo "TAVILY_API_KEY=${TAVILY_API_KEY}" >> .env
-          
-          docker-compose down
-          docker-compose up -d --build
+          cat > .env <<EOF
+          APP_SYMBOLS=${APP_SYMBOLS}
+          TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+          TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+          GEMINI_API_KEY=${GEMINI_API_KEY}
+          TAVILY_API_KEY=${TAVILY_API_KEY}
+          EOF
+
+      - name: Deploy via Docker Compose
+        run: |
+          docker compose down
+          docker compose up -d --build
           docker image prune -f
+
+      - name: Wait for app startup
+        run: sleep 20
+
+      - name: Verify containers are healthy
+        run: |
+          docker ps --format 'table {{.Names}}\t{{.Status}}'
+          docker compose ps
+          docker logs --tail 100 stock-alert-bot-app-1
+
+      - name: Fail on recent app errors
+        run: |
+          if docker logs --since 10m stock-alert-bot-app-1 2>&1 | grep -E "ERROR|Exception|Failed to|APPLICATION FAILED TO START"; then
+            echo "Recent application errors found in logs"
+            exit 1
+          fi
+
+      - name: Verify latest bar publishing behavior
+        run: |
+          if ! docker logs --since 10m stock-alert-bot-app-1 2>&1 | grep -q "Publishing"; then
+            echo "Expected bar publishing log lines were not found"
+            exit 1
+          fi
