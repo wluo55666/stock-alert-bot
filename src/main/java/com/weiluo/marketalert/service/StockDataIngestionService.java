@@ -63,17 +63,20 @@ public class StockDataIngestionService {
             if (result.timestamp() == null || result.timestamp().isEmpty()) return null;
             Quote quote = result.indicators().quote().get(0);
             int lastIdx = result.timestamp().size() - 1;
-            while (lastIdx >= 0 && (quote.close().get(lastIdx) == null || quote.volume().get(lastIdx) == null)) {
+            while (lastIdx >= 0 && isIncompleteBar(quote, lastIdx)) {
                 lastIdx--;
             }
-            if (lastIdx < 0) return null;
+            if (lastIdx < 0) {
+                log.debug("No completed candle available for {}.", symbol);
+                return null;
+            }
             Instant beginTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
             Instant endTime = beginTime.plusSeconds(900);
             BaseBar bar = new BaseBar(Duration.ofMinutes(15), beginTime, endTime,
                     DoubleNum.valueOf(quote.open().get(lastIdx)), DoubleNum.valueOf(quote.high().get(lastIdx)),
                     DoubleNum.valueOf(quote.low().get(lastIdx)), DoubleNum.valueOf(quote.close().get(lastIdx)),
                     DoubleNum.valueOf(quote.volume().get(lastIdx)), DoubleNum.valueOf(0), 1L);
-            log.debug("Built 15M Bar for {}: {}", symbol, bar);
+            log.debug("Built completed 15M Bar for {}: {}", symbol, bar);
             return new SymbolBar(symbol, bar);
         } catch (Exception e) {
             log.warn("Failed to parse Yahoo Finance response for {}: {}", symbol, e.getMessage());
@@ -83,6 +86,15 @@ public class StockDataIngestionService {
 
     public void injectBar(SymbolBar bar) {
         eventPublisher.publishEvent(bar);
+    }
+
+    private boolean isIncompleteBar(Quote quote, int index) {
+        return quote.open().get(index) == null
+                || quote.high().get(index) == null
+                || quote.low().get(index) == null
+                || quote.close().get(index) == null
+                || quote.volume().get(index) == null
+                || quote.volume().get(index) <= 0;
     }
 
     public record YahooResponse(Chart chart) {}
