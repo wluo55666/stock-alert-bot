@@ -29,3 +29,8 @@ build/
 
 ### VSCode
 .vscode/
+
+### Local env / deploy artifacts
+.env
+.env.*
+!.env.example
