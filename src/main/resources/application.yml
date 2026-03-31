@@ -34,5 +34,5 @@ langchain4j:
   google-ai-gemini:
     chat-model:
       api-key: ${GEMINI_API_KEY:dummy-key}
-      model-name: gemini-1.5-flash
+      model-name: gemini-3-flash-preview
       temperature: 0.2
