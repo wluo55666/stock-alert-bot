@@ -26,6 +26,7 @@ public class StockDataIngestionService {
     private final ApplicationEventPublisher eventPublisher;
     private final Map<String, Instant> lastPublishedBarEndBySymbol = new ConcurrentHashMap<>();
     private final Map<String, Instant> lastObservedBarEndBySymbol = new ConcurrentHashMap<>();
+    private final Map<String, Instant> lastLoggedStaleBarEndBySymbol = new ConcurrentHashMap<>();
     private List<String> validSymbols;
 
     public StockDataIngestionService(AppProperties properties, RestClient.Builder restClientBuilder, ApplicationEventPublisher eventPublisher) {
@@ -101,11 +102,13 @@ public class StockDataIngestionService {
         Instant newEndTime = bar.bar().getEndTime();
         Instant previousEndTime = lastPublishedBarEndBySymbol.putIfAbsent(symbol, newEndTime);
         if (previousEndTime == null) {
+            lastLoggedStaleBarEndBySymbol.remove(symbol);
             log.debug("Publishing first completed 15M bar for {} ending at {}", symbol, newEndTime);
             return true;
         }
         if (newEndTime.isAfter(previousEndTime)) {
             lastPublishedBarEndBySymbol.put(symbol, newEndTime);
+            lastLoggedStaleBarEndBySymbol.remove(symbol);
             log.debug("Publishing new completed 15M bar for {} ending at {}", symbol, newEndTime);
             return true;
         }
@@ -116,9 +119,13 @@ public class StockDataIngestionService {
     private boolean isStaleObservation(String symbol, Instant endTime) {
         Instant previousObserved = lastObservedBarEndBySymbol.put(symbol, endTime);
         if (previousObserved != null && !endTime.isAfter(previousObserved)) {
-            log.debug("No newer completed candle for {} since {}", symbol, previousObserved);
+            Instant lastLoggedStale = lastLoggedStaleBarEndBySymbol.put(symbol, endTime);
+            if (lastLoggedStale == null || !lastLoggedStale.equals(endTime)) {
+                log.debug("No newer completed candle for {} since {}", symbol, previousObserved);
+            }
             return true;
         }
+        lastLoggedStaleBarEndBySymbol.remove(symbol);
         return false;
     }
 
