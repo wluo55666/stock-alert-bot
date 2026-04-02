@@ -86,6 +86,14 @@ class StockDataIngestionServiceTest {
         assertEquals(true, stale);
     }
 
+    @Test
+    void testNewerObservationClearsPreviousStaleState() {
+        Instant endTime = Instant.now();
+        assertFalse(invokeIsStaleObservation("AAPL", endTime));
+        assertEquals(true, invokeIsStaleObservation("AAPL", endTime));
+        assertFalse(invokeIsStaleObservation("AAPL", endTime.plus(Duration.ofMinutes(15))));
+    }
+
     private boolean invokeShouldPublish(String symbol, SymbolBar bar) {
         try {
             var method = StockDataIngestionService.class.getDeclaredMethod("shouldPublish", String.class, SymbolBar.class);
