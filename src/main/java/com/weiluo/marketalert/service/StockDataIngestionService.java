@@ -86,7 +86,6 @@ public class StockDataIngestionService {
                     DoubleNum.valueOf(quote.open().get(lastIdx)), DoubleNum.valueOf(quote.high().get(lastIdx)),
                     DoubleNum.valueOf(quote.low().get(lastIdx)), DoubleNum.valueOf(quote.close().get(lastIdx)),
                     DoubleNum.valueOf(quote.volume().get(lastIdx)), DoubleNum.valueOf(0), 1L);
-            log.debug("Built completed 15M Bar for {}: {}", symbol, bar);
             return new SymbolBar(symbol, bar);
         } catch (Exception e) {
             log.warn("Failed to parse Yahoo Finance response for {}: {}", symbol, e.getMessage());
@@ -103,16 +102,23 @@ public class StockDataIngestionService {
         Instant previousEndTime = lastPublishedBarEndBySymbol.putIfAbsent(symbol, newEndTime);
         if (previousEndTime == null) {
             lastLoggedStaleBarEndBySymbol.remove(symbol);
-            log.debug("Publishing first completed 15M bar for {} ending at {}", symbol, newEndTime);
+            log.info("Publishing first completed 15M bar for {} ending at {} (close={}, volume={})",
+                    symbol,
+                    newEndTime,
+                    bar.bar().getClosePrice(),
+                    bar.bar().getVolume());
             return true;
         }
         if (newEndTime.isAfter(previousEndTime)) {
             lastPublishedBarEndBySymbol.put(symbol, newEndTime);
             lastLoggedStaleBarEndBySymbol.remove(symbol);
-            log.debug("Publishing new completed 15M bar for {} ending at {}", symbol, newEndTime);
+            log.info("Publishing new completed 15M bar for {} ending at {} (close={}, volume={})",
+                    symbol,
+                    newEndTime,
+                    bar.bar().getClosePrice(),
+                    bar.bar().getVolume());
             return true;
         }
-        log.debug("Skipping duplicate in-progress snapshot for {} ending at {}", symbol, newEndTime);
         return false;
     }
 
