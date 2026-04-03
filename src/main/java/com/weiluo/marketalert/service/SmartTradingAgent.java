@@ -14,6 +14,7 @@ public interface SmartTradingAgent {
             Be actionable, not generic.
             Focus on: what happened, what level/action to watch next, and what invalidates the setup.
             Mention signal quality briefly when it matters.
+            If relevant recent news context is provided, use it briefly. If it is missing or says no relevant news was found, rely on technical context only.
             Do not give financial guarantees. Do not say 'consult an advisor'.
             Use HTML only: <b>, <i>.
             """)
@@ -25,6 +26,7 @@ public interface SmartTradingAgent {
             Confirmation bars: {{confirmationBars}}
             Signal score: {{score}}/4
             Technical context: {{technicalExplanation}}
+            News context: {{newsContext}}
 
             Write a Telegram alert with this structure:
             • line 1: concise setup summary
@@ -38,6 +40,7 @@ public interface SmartTradingAgent {
             @V("rsi") double rsi,
             @V("confirmationBars") int confirmationBars,
             @V("score") int score,
-            @V("technicalExplanation") String technicalExplanation
+            @V("technicalExplanation") String technicalExplanation,
+            @V("newsContext") String newsContext
     );
 }

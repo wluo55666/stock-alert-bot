@@ -9,6 +9,7 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
   - **Sliding-window momentum** for breakout / breakdown detection
   - **ta4j MACD + RSI reversal** detection
 - Applies **cooldowns**, **confirmation bars**, and **signal scoring** to reduce noise
+- Uses **selective news enrichment** for stronger TA alerts instead of forcing web search for every alert
 - Sends Telegram alerts with concise, actionable AI summaries
 
 ## Current behavior
@@ -17,6 +18,23 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
 - Incomplete / zero-volume candles are ignored
 - Stale candles are suppressed instead of being rebuilt forever
 - Alerts are intentionally selective; quiet days may produce no alerts
+- Strong TA alerts can fetch recent news context before AI synthesis
+
+## Decision logging
+The bot now logs explicit per-bar / per-signal decisions so you can tell why a symbol did or did not alert.
+
+Examples:
+- `Sliding-window decision symbol=TSLA action=SUPPRESS score=2 minimumScore=3 ...`
+- `TA decision symbol=OXY signal=NONE action=NO_TRIGGER ...`
+- `TA decision symbol=TSLA signal=BULLISH REVERSAL 📈 action=ALERT score=4 ... newsUsed=true`
+
+This makes it easier to distinguish:
+- no trigger
+- suppressed by low score
+- suppressed by missing confirmation
+- suppressed by cooldown
+- alert sent
+- whether news enrichment ran
 
 ## Tech stack
 - Java 24
@@ -24,6 +42,7 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
 - ta4j
 - LangChain4j
 - Gemini (alert phrasing)
+- Tavily (selective news enrichment)
 - Redis (dedupe / cooldown state)
 - Docker + GitHub Actions
 
@@ -68,13 +87,26 @@ In `src/main/resources/application.yml`:
 - `app.ta4j.minimum-score`
 - cooldown settings for both strategies
 
+## Selective news enrichment
+The bot does **not** force web search on every alert.
+
+Current approach:
+- sliding-window alerts: no news enrichment
+- ta4j alerts: news lookup only for stronger alerts (currently score >= 4)
+
+Why:
+- lower latency
+- fewer external failure points
+- lower cost
+- more relevant use of news context
+
 ## Operational notes
 - Redis is used for alert deduplication/cooldowns
 - The app logs new 15-minute candle publications and signal decisions
 - If no alerts fire on a given day, that can be normal under the current scoring thresholds
 
 ## Current limitations / next improvements
-- Add clearer per-bar decision summaries for suppressed signals
+- Add volume-aware signal scoring
 - Add retry/backoff for transient Yahoo failures
 - Add ticker-specific profiles
 - Improve support/resistance and multi-timeframe context
