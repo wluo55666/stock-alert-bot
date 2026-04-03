@@ -62,10 +62,16 @@ public class SlidingWindowAnalysisService {
         if (analysis == null) return;
 
         double threshold = properties.slidingWindow().thresholdPercent();
-        if (Math.abs(analysis.netPercentChange()) < threshold) return;
-        if (analysis.confirmationCount() < properties.slidingWindow().confirmationBars()) return;
+        if (Math.abs(analysis.netPercentChange()) < threshold) {
+            log.info("Sliding-window decision symbol={} action=NO_TRIGGER score={} threshold={} move={} confirmation={} newsUsed=false reason=below_threshold", symbol, analysis.score(), threshold, analysis.netPercentChange(), analysis.confirmationCount());
+            return;
+        }
+        if (analysis.confirmationCount() < properties.slidingWindow().confirmationBars()) {
+            log.info("Sliding-window decision symbol={} action=SUPPRESS score={} minimumScore={} move={} confirmation={} newsUsed=false reason=insufficient_confirmation", symbol, analysis.score(), properties.slidingWindow().minimumScore(), analysis.netPercentChange(), analysis.confirmationCount());
+            return;
+        }
         if (analysis.score() < properties.slidingWindow().minimumScore()) {
-            log.debug("Suppressing sliding-window alert for {} because score {} is below minimum {}", symbol, analysis.score(), properties.slidingWindow().minimumScore());
+            log.info("Sliding-window decision symbol={} action=SUPPRESS score={} minimumScore={} move={} confirmation={} newsUsed=false reason=below_minimum_score", symbol, analysis.score(), properties.slidingWindow().minimumScore(), analysis.netPercentChange(), analysis.confirmationCount());
             return;
         }
 
@@ -149,10 +155,10 @@ public class SlidingWindowAnalysisService {
                     confirmationCount,
                     score
             );
-            log.info("Triggering sliding-window alert for {}: {} {} (score={})", symbol, direction, percentChange, score);
+            log.info("Sliding-window decision symbol={} signal={} action=ALERT score={} minimumScore={} move={} confirmation={} newsUsed=false", symbol, direction, score, properties.slidingWindow().minimumScore(), percentChange, confirmationCount);
             telegramAlertService.sendAlert(message);
         } else {
-            log.debug("Alert for {} recently sent. Deduplicating.", symbol);
+            log.info("Sliding-window decision symbol={} signal={} action=SUPPRESS score={} minimumScore={} move={} confirmation={} newsUsed=false reason=cooldown", symbol, direction, score, properties.slidingWindow().minimumScore(), percentChange, confirmationCount);
         }
     }
 

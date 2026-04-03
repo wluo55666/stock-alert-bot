@@ -48,7 +48,7 @@ class TestE2EControllerTest {
 
     @Test
     void testTriggerAlertEndpoint() throws Exception {
-        when(smartTradingAgent.synthesizeAlert(anyString(), anyString(), anyDouble(), anyDouble(), anyInt(), anyInt(), anyString()))
+        when(smartTradingAgent.synthesizeAlert(anyString(), anyString(), anyDouble(), anyDouble(), anyInt(), anyInt(), anyString(), anyString()))
                 .thenReturn("synthetic alert");
 
         String jsonPayload = """

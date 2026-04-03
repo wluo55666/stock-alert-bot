@@ -54,7 +54,8 @@ public class TestE2EController {
                 payload.rsi(),
                 payload.confirmationBars(),
                 payload.score(),
-                payload.technicalExplanation()
+                payload.technicalExplanation(),
+                "Synthetic E2E trigger: no live news lookup performed."
         );
         telegramAlertService.sendAlert(message);
         return ResponseEntity.ok().build();

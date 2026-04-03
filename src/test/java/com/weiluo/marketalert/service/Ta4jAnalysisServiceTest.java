@@ -26,13 +26,14 @@ class Ta4jAnalysisServiceTest {
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private ValueOperations<String, String> valueOps;
     @Mock private SmartTradingAgent smartTradingAgent;
+    @Mock private MarketNewsTool marketNewsTool;
     private AppProperties properties;
     private Ta4jAnalysisService analysisService;
 
     @BeforeEach
     void setUp() {
         properties = new AppProperties(List.of("AAPL"), null, new AppProperties.Ta4j(900, 14, 12, 26, 9, 2, 60, 3), null, null);
-        analysisService = new Ta4jAnalysisService(telegramAlertService, properties, redisTemplate, smartTradingAgent);
+        analysisService = new Ta4jAnalysisService(telegramAlertService, properties, redisTemplate, smartTradingAgent, marketNewsTool);
     }
 
     @Test
