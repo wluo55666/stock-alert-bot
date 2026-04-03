@@ -33,13 +33,15 @@ public class Ta4jAnalysisService {
     private final AppProperties properties;
     private final StringRedisTemplate redisTemplate;
     private final SmartTradingAgent smartTradingAgent;
+    private final MarketNewsTool marketNewsTool;
     private final Map<String, BarSeries> seriesMap = new ConcurrentHashMap<>();
 
-    public Ta4jAnalysisService(TelegramAlertService telegramAlertService, AppProperties properties, StringRedisTemplate redisTemplate, SmartTradingAgent smartTradingAgent) {
+    public Ta4jAnalysisService(TelegramAlertService telegramAlertService, AppProperties properties, StringRedisTemplate redisTemplate, SmartTradingAgent smartTradingAgent, MarketNewsTool marketNewsTool) {
         this.telegramAlertService = telegramAlertService;
         this.properties = properties;
         this.redisTemplate = redisTemplate;
         this.smartTradingAgent = smartTradingAgent;
+        this.marketNewsTool = marketNewsTool;
     }
 
     @PostConstruct
@@ -98,23 +100,27 @@ public class Ta4jAnalysisService {
 
         if (bullishRule.isSatisfied(index)) {
             int score = scoreSignal(macd.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), closePrice, index, true, properties.ta4j().confirmationBars());
-            if (score >= properties.ta4j().minimumScore() && hasDirectionalConfirmation(closePrice, index, true, properties.ta4j().confirmationBars())) {
+            boolean confirmed = hasDirectionalConfirmation(closePrice, index, true, properties.ta4j().confirmationBars());
+            if (score >= properties.ta4j().minimumScore() && confirmed) {
                 triggerAlert(symbol, "BULLISH REVERSAL 📈", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), properties.ta4j().confirmationBars(), score, "MACD crossed above signal below zero, with RSI still below overbought. This suggests a potential reversal with early momentum confirmation.");
             } else {
-                log.debug("Suppressing bullish TA alert for {} because score {} is below minimum {}", symbol, score, properties.ta4j().minimumScore());
+                log.info("TA decision symbol={} signal=BULLISH_REVERSAL action=SUPPRESS score={} minimumScore={} confirmation={} newsUsed=false reason=score_or_confirmation", symbol, score, properties.ta4j().minimumScore(), confirmed);
             }
         } else if (bearishRule.isSatisfied(index)) {
             int score = scoreSignal(macd.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), closePrice, index, false, properties.ta4j().confirmationBars());
-            if (score >= properties.ta4j().minimumScore() && hasDirectionalConfirmation(closePrice, index, false, properties.ta4j().confirmationBars())) {
+            boolean confirmed = hasDirectionalConfirmation(closePrice, index, false, properties.ta4j().confirmationBars());
+            if (score >= properties.ta4j().minimumScore() && confirmed) {
                 triggerAlert(symbol, "BEARISH REVERSAL 📉", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), properties.ta4j().confirmationBars(), score, "MACD crossed below signal above zero, with RSI still above oversold. This suggests fading upside momentum and a potential downside reversal.");
             } else {
-                log.debug("Suppressing bearish TA alert for {} because score {} is below minimum {}", symbol, score, properties.ta4j().minimumScore());
+                log.info("TA decision symbol={} signal=BEARISH_REVERSAL action=SUPPRESS score={} minimumScore={} confirmation={} newsUsed=false reason=score_or_confirmation", symbol, score, properties.ta4j().minimumScore(), confirmed);
             }
+        } else {
+            log.info("TA decision symbol={} signal=NONE action=NO_TRIGGER newsUsed=false reason=no_crossover", symbol);
         }
     }
 
     private int scoreSignal(double macdValue, double rsiValue, ClosePriceIndicator closePrice, int index, boolean bullish, int confirmationBars) {
-        int score = 1; // base point for valid crossover rule satisfaction
+        int score = 1;
         if (hasDirectionalConfirmation(closePrice, index, bullish, confirmationBars)) score++;
         if (bullish && rsiValue <= 45) score++;
         if (!bullish && rsiValue >= 55) score++;
@@ -141,11 +147,13 @@ public class Ta4jAnalysisService {
         Duration lockDuration = Duration.ofMinutes(properties.ta4j().cooldownMinutes());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
-            String aiMessage = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, confirmationBars, score, explanation);
-            log.info("Triggering ta4j alert for {}: {} (score={})", symbol, signal, score);
+            boolean useNews = score >= 4;
+            String newsContext = useNews ? marketNewsTool.getLatestNews(symbol) : "No relevant news lookup performed for this alert.";
+            String aiMessage = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, confirmationBars, score, explanation, newsContext);
+            log.info("TA decision symbol={} signal={} action=ALERT score={} minimumScore={} confirmation=true newsUsed={}", symbol, signal, score, properties.ta4j().minimumScore(), useNews);
             telegramAlertService.sendAlert(aiMessage);
         } else {
-            log.debug("TA alert for {} recently sent. Deduplicating.", symbol);
+            log.info("TA decision symbol={} signal={} action=SUPPRESS score={} minimumScore={} confirmation=true newsUsed=false reason=cooldown", symbol, signal, score, properties.ta4j().minimumScore());
         }
     }
 }
