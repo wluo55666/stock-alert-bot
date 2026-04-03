@@ -1,6 +1,8 @@
 package com.weiluo.marketalert.controller;
 import com.weiluo.marketalert.model.SymbolBar;
 import com.weiluo.marketalert.service.StockDataIngestionService;
+import com.weiluo.marketalert.service.SmartTradingAgent;
+import com.weiluo.marketalert.service.TelegramAlertService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,8 +17,13 @@ import java.time.Instant;
 @RequestMapping("/api/test")
 public class TestE2EController {
     private final StockDataIngestionService ingestionService;
-    public TestE2EController(StockDataIngestionService ingestionService) {
+    private final SmartTradingAgent smartTradingAgent;
+    private final TelegramAlertService telegramAlertService;
+
+    public TestE2EController(StockDataIngestionService ingestionService, SmartTradingAgent smartTradingAgent, TelegramAlertService telegramAlertService) {
         this.ingestionService = ingestionService;
+        this.smartTradingAgent = smartTradingAgent;
+        this.telegramAlertService = telegramAlertService;
     }
     public record InjectPayload(String symbol, double open, double high, double low, double close, double volume, long timestamp) {}
     
@@ -29,6 +36,23 @@ public class TestE2EController {
                 DoubleNum.valueOf(payload.volume()), DoubleNum.valueOf(0), 1L);
         SymbolBar bar = new SymbolBar(payload.symbol(), baseBar);
         ingestionService.injectBar(bar);
+        return ResponseEntity.ok().build();
+    }
+
+    public record AlertPayload(String symbol, String signal, double price, double rsi, int confirmationBars, int score, String technicalExplanation) {}
+
+    @PostMapping("/alert")
+    public ResponseEntity<Void> triggerAlert(@RequestBody AlertPayload payload) {
+        String msg = smartTradingAgent.synthesizeAlert(
+                payload.symbol(), 
+                payload.signal(), 
+                payload.price(), 
+                payload.rsi(), 
+                payload.confirmationBars(), 
+                payload.score(), 
+                payload.technicalExplanation()
+        );
+        telegramAlertService.sendAlert(msg);
         return ResponseEntity.ok().build();
     }
 }

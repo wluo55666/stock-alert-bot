@@ -1,6 +1,8 @@
 package com.weiluo.marketalert.controller;
 import com.weiluo.marketalert.model.SymbolBar;
 import com.weiluo.marketalert.service.StockDataIngestionService;
+import com.weiluo.marketalert.service.SmartTradingAgent;
+import com.weiluo.marketalert.service.TelegramAlertService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -18,6 +20,10 @@ class TestE2EControllerTest {
     private MockMvc mockMvc;
     @MockBean
     private StockDataIngestionService ingestionService;
+    @MockBean
+    private SmartTradingAgent smartTradingAgent;
+    @MockBean
+    private TelegramAlertService telegramAlertService;
 
     @Test
     void testInjectBarEndpoint() throws Exception {

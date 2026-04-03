@@ -37,9 +37,23 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
 See `.env.example` for a template.
 
 ## Local run
+
 ```bash
 docker compose up -d --build
 ```
+
+## E2E Testing
+To quickly test the internal AI alert synthesis and Telegram delivery pipeline without waiting for real stock conditions, you can run the synthetic End-to-End trigger script:
+
+```bash
+./scripts/trigger-e2e.sh
+```
+
+This script tests:
+
+1. Short-term single-bar injections.
+2. Generating 35+ fake historical bars to trigger the TA4J MACD pipeline.
+3. Directly hitting the `/api/test/alert` endpoint to trigger an immediate AI web-search and Telegram delivery, bypassing technical criteria.
 
 ## Key tuning knobs
 In `src/main/resources/application.yml`:

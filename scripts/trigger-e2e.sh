@@ -40,5 +40,20 @@ for i in {1..40}; do
     -d "{\"symbol\": \"TEST_TA4J\", \"open\": $PRICE.0, \"high\": $PRICE.0, \"low\": $PRICE.0, \"close\": $PRICE.0, \"volume\": 1000, \"timestamp\": $TIMESTAMP}" > /dev/null
 done
 
-echo -e "\nTa4j historical bars injected successfully. Check your application logs and Telegram for both alerts!"
+echo -e "\nTa4j historical bars injected successfully."
 
+# 4. Directly trigger an AI & Telegram alert (bypassing TA rules)
+echo -e "\nDirectly triggering a synthetic E2E alert via /api/test/alert..."
+curl -s -X POST http://localhost:8080/api/test/alert \
+  -H "Content-Type: application/json" \
+  -d '{
+    "symbol": "FAKE_E2E",
+    "signal": "BULLISH REVERSAL 📈",
+    "price": 185.0,
+    "rsi": 35.0,
+    "confirmationBars": 2,
+    "score": 4,
+    "technicalExplanation": "Artificial E2E Injection: Fake MACD crossover context here."
+  }'
+
+echo -e "\n\nDirect alert triggered successfully. Check your application logs and Telegram for all E2E alerts!"
