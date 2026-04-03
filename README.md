@@ -1,18 +1,63 @@
-# 📈 Stock Alert Bot (v2.0)
+# Stock Alert Bot
 
-Professional-grade market monitoring built with **Java 24**, **Spring Boot 3.4**, and **LangChain4j**.
+A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candles, scores technical setups, and sends Telegram alerts with AI-generated trading context.
 
-## ✨ Features
-- **Real-time Monitoring:** Yahoo Finance 15-minute candle polling.
-- **Smart Alerts:** **Gemini 3.0 Flash** powered analysis.
-- **Market News:** Real-time context via **Tavily Web Search**.
-- **Performance:** Native Java 24 Virtual Threads.
+## What it does
+- Polls Yahoo Finance for configured symbols on a 1-minute loop
+- Promotes only **new completed 15-minute candles** into analysis
+- Runs two signal paths:
+  - **Sliding-window momentum** for breakout / breakdown detection
+  - **ta4j MACD + RSI reversal** detection
+- Applies **cooldowns**, **confirmation bars**, and **signal scoring** to reduce noise
+- Sends Telegram alerts with concise, actionable AI summaries
 
-## 🚀 Quick Start
-1. Add API keys to GitHub Secrets.
-2. Run: `docker-compose up -d`.
+## Current behavior
+- Symbols come from `APP_SYMBOLS`
+- The bot only publishes a bar when a **new 15-minute candle** appears
+- Incomplete / zero-volume candles are ignored
+- Stale candles are suppressed instead of being rebuilt forever
+- Alerts are intentionally selective; quiet days may produce no alerts
 
-## 🛠️ Tech Stack
-- Java 24, Spring Boot 3.4
-- LangChain4j (Gemini, Tavily)
-- GitHub Actions, Docker
+## Tech stack
+- Java 24
+- Spring Boot 3.4
+- ta4j
+- LangChain4j
+- Gemini (alert phrasing)
+- Redis (dedupe / cooldown state)
+- Docker + GitHub Actions
+
+## Required environment variables
+- `APP_SYMBOLS`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `GEMINI_API_KEY`
+- `TAVILY_API_KEY`
+
+See `.env.example` for a template.
+
+## Local run
+```bash
+docker compose up -d --build
+```
+
+## Key tuning knobs
+In `src/main/resources/application.yml`:
+- `app.sliding-window.threshold-percent`
+- `app.sliding-window.confirmation-bars`
+- `app.sliding-window.strong-move-percent`
+- `app.sliding-window.minimum-score`
+- `app.ta4j.confirmation-bars`
+- `app.ta4j.minimum-score`
+- cooldown settings for both strategies
+
+## Operational notes
+- Redis is used for alert deduplication/cooldowns
+- The app logs new 15-minute candle publications and signal decisions
+- If no alerts fire on a given day, that can be normal under the current scoring thresholds
+
+## Current limitations / next improvements
+- Add clearer per-bar decision summaries for suppressed signals
+- Add retry/backoff for transient Yahoo failures
+- Add ticker-specific profiles
+- Improve support/resistance and multi-timeframe context
