@@ -41,6 +41,23 @@ See `.env.example` for a template.
 docker compose up -d --build
 ```
 
+## E2E testing
+To quickly test the internal AI alert synthesis and Telegram delivery pipeline without waiting for real stock conditions, you can run the synthetic E2E trigger script:
+
+```bash
+APP_TEST_ENDPOINTS_ENABLED=true ./scripts/trigger-e2e.sh
+```
+
+This script can:
+1. inject synthetic sliding-window bars
+2. inject enough synthetic historical bars to exercise the ta4j path
+3. directly trigger an AI-generated Telegram alert through a test-only endpoint
+
+### Safety note
+- `/api/test/*` endpoints are enabled only when `app.test-endpoints-enabled=true`
+- the script can send a **real Telegram message** if your bot credentials are configured
+- use this only in local/dev testing
+
 ## Key tuning knobs
 In `src/main/resources/application.yml`:
 - `app.sliding-window.threshold-percent`
