@@ -10,43 +10,55 @@ if [ "${APP_TEST_ENDPOINTS_ENABLED:-false}" != "true" ]; then
   exit 1
 fi
 
-echo "Triggering E2E test by injecting synthetic bars for sliding window and ta4j analysis..."
+echo "Triggering expanded E2E test suite..."
 
-# 1. Inject a baseline bar for TEST_CO at $100
-echo "Injecting baseline bar: TEST_CO at \$100.00"
-curl -X POST "$BASE_URL/api/test/inject" \
-  -H "Content-Type: application/json" \
-  -d '{"symbol": "TEST_CO", "open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0, "volume": 1000, "timestamp": '$(date +%s000)'}'
+post_inject() {
+  local symbol="$1"
+  local open="$2"
+  local high="$3"
+  local low="$4"
+  local close="$5"
+  local volume="$6"
+  local timestamp_ms="$7"
 
+  curl -s -X POST "$BASE_URL/api/test/inject" \
+    -H "Content-Type: application/json" \
+    -d "{\"symbol\": \"$symbol\", \"open\": $open, \"high\": $high, \"low\": $low, \"close\": $close, \"volume\": $volume, \"timestamp\": $timestamp_ms}" > /dev/null
+}
+
+# 1. Sliding-window ALERT path
+echo "[1/5] Sliding-window ALERT path"
+NOW_MS=$(date +%s000)
+post_inject "TEST_CO" 100.0 100.0 100.0 100.0 1000 "$NOW_MS"
 sleep 1
+post_inject "TEST_CO" 100.0 150.0 100.0 150.0 5000 "$(date +%s000)"
+echo "  -> expected: sliding-window ALERT"
 
-# 2. Inject a spiked bar for TEST_CO at $150
-echo -e "\nInjecting spiked bar: TEST_CO at \$150.00 (50% spike for sliding window alert)"
-curl -X POST "$BASE_URL/api/test/inject" \
-  -H "Content-Type: application/json" \
-  -d '{"symbol": "TEST_CO", "open": 100.0, "high": 150.0, "low": 100.0, "close": 150.0, "volume": 5000, "timestamp": '$(date +%s000)'}'
+# 2. Sliding-window NO_TRIGGER / SUPPRESS path
+echo "[2/5] Sliding-window low-score path"
+BASE_MS=$(($(date +%s) * 1000))
+post_inject "TEST_WEAK" 100.0 100.0 100.0 100.0 1000 "$BASE_MS"
+post_inject "TEST_WEAK" 100.0 101.0 100.0 101.0 1000 "$((BASE_MS + 60000))"
+echo "  -> expected: below-threshold or suppressed sliding-window decision"
 
-echo -e "\nSliding Window bars injected successfully."
-
-# 3. Inject enough bars to build 35+ bars for MACD/RSI
-echo -e "\nInjecting 40 historical minute bars to trigger a Ta4j MACD alert..."
+# 3. TA path decision coverage (may not guarantee ALERT, but should generate TA decisions)
+echo "[3/5] TA decision coverage"
 BASE_TIME=$(($(date +%s) - 3000))
 for i in {1..40}; do
   TIMESTAMP=$((BASE_TIME + i * 60))000
-  if [ $i -lt 38 ]; then
-    PRICE=$((100 + i * 2))
+  if [ $i -lt 20 ]; then
+    PRICE=$((120 - i))
+  elif [ $i -lt 35 ]; then
+    PRICE=$((100 + i))
   else
-    PRICE=$((100 - i * 2))
+    PRICE=$((145 - (i - 35) * 8))
   fi
-  curl -s -X POST "$BASE_URL/api/test/inject" \
-    -H "Content-Type: application/json" \
-    -d "{\"symbol\": \"TEST_TA4J\", \"open\": $PRICE.0, \"high\": $PRICE.0, \"low\": $PRICE.0, \"close\": $PRICE.0, \"volume\": 1000, \"timestamp\": $TIMESTAMP}" > /dev/null
+  post_inject "TEST_TA4J" "$PRICE.0" "$PRICE.0" "$PRICE.0" "$PRICE.0" 1000 "$TIMESTAMP"
 done
+echo "  -> expected: TA decision logs (NO_TRIGGER / SUPPRESS / maybe ALERT depending on indicator state)"
 
-echo -e "\nTa4j historical bars injected successfully."
-
-# 4. Directly trigger an AI + Telegram alert
-echo -e "\nDirectly triggering a synthetic E2E alert via /api/test/alert..."
+# 4. Direct synthetic alert path
+echo "[4/5] Direct synthetic alert endpoint"
 curl -s -X POST "$BASE_URL/api/test/alert" \
   -H "Content-Type: application/json" \
   -d '{
@@ -57,6 +69,28 @@ curl -s -X POST "$BASE_URL/api/test/alert" \
     "confirmationBars": 2,
     "score": 4,
     "technicalExplanation": "Artificial E2E Injection: Fake MACD crossover context here."
-  }'
+  }' > /dev/null
+echo "  -> expected: Telegram send success"
 
-echo -e "\n\nDirect alert triggered successfully. Check your application logs and Telegram for synthetic E2E alerts."
+# 5. News-enriched direct synthetic alert path (documents desired strong-alert behavior)
+echo "[5/5] Strong synthetic alert path (score=4)"
+curl -s -X POST "$BASE_URL/api/test/alert" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "symbol": "FAKE_E2E_STRONG",
+    "signal": "BULLISH REVERSAL 📈",
+    "price": 220.0,
+    "rsi": 28.0,
+    "confirmationBars": 3,
+    "score": 4,
+    "technicalExplanation": "Synthetic strong-alert path for E2E validation."
+  }' > /dev/null
+echo "  -> expected: strong synthetic alert send success"
+
+echo
+echo "Expanded E2E test completed."
+echo "Now check logs for:"
+echo "  - Sliding-window decision ... action=ALERT"
+echo "  - Sliding-window decision ... action=NO_TRIGGER/SUPPRESS"
+echo "  - TA decision ..."
+echo "  - Alert sent to Telegram successfully"
