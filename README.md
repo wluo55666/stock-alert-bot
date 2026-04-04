@@ -61,21 +61,30 @@ docker compose up -d --build
 ```
 
 ## E2E testing
-To quickly test the internal AI alert synthesis and Telegram delivery pipeline without waiting for real stock conditions, you can run the synthetic E2E trigger script:
+To quickly test the alert pipeline without waiting for real stock conditions, you can run the synthetic E2E trigger script:
 
 ```bash
 APP_TEST_ENDPOINTS_ENABLED=true ./scripts/trigger-e2e.sh
 ```
 
-This script can:
-1. inject synthetic sliding-window bars
-2. inject enough synthetic historical bars to exercise the ta4j path
-3. directly trigger an AI-generated Telegram alert through a test-only endpoint
+The expanded script now covers multiple paths:
+1. **sliding-window ALERT** path
+2. **sliding-window low-score / no-trigger** path
+3. **TA decision logging** path
+4. **direct synthetic alert** path
+5. **strong synthetic alert** path for high-score alert behavior
 
 ### Safety note
 - `/api/test/*` endpoints are enabled only when `app.test-endpoints-enabled=true`
-- the script can send a **real Telegram message** if your bot credentials are configured
+- the script can send **real Telegram messages** if your bot credentials are configured
 - use this only in local/dev testing
+
+### Important nuance
+The script is designed to cover more branches and decision logs, but the injected TA bar sequence still does not guarantee a real ta4j `ALERT` on every run because crossover state depends on the exact indicator evolution. It is best used to validate:
+- endpoint wiring
+- log coverage
+- Telegram delivery
+- decision-summary behavior
 
 ## Key tuning knobs
 In `src/main/resources/application.yml`:
