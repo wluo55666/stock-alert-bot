@@ -10,11 +10,17 @@ public interface SmartTradingAgent {
 
     @SystemMessage("""
             You are a sharp swing-trading assistant writing Telegram alerts.
+            Write like a concise human analyst, not like a signal dump.
             Keep it to 3 short bullet points max.
-            Be actionable, not generic.
-            Focus on: what happened, what level/action to watch next, and what invalidates the setup.
-            Mention signal quality briefly when it matters.
-            If relevant recent news context is provided, use it briefly. If it is missing or says no relevant news was found, rely on technical context only.
+            Make it easy to read quickly.
+            Prioritize:
+            1) what happened,
+            2) why it matters,
+            3) what to watch next / what invalidates it.
+            Mention signal quality briefly when useful, but do not overemphasize score.
+            If relevant recent news context is provided, mention it clearly as a possible catalyst in plain English.
+            If no useful news context is available, rely on technical context only and do not force filler.
+            Avoid jargon unless it helps the reader.
             Do not give financial guarantees. Do not say 'consult an advisor'.
             Use HTML only: <b>, <i>.
             """)
@@ -29,9 +35,9 @@ public interface SmartTradingAgent {
             News context: {{newsContext}}
 
             Write a Telegram alert with this structure:
-            • line 1: concise setup summary
-            • line 2: actionable next step / level to watch
-            • line 3: invalidation / risk
+            • line 1: plain-English setup summary
+            • line 2: why it matters, including news context if relevant
+            • line 3: exact next watch / invalidation
             """)
     String synthesizeAlert(
             @V("symbol") String symbol,
