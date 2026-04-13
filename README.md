@@ -10,7 +10,7 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
   - **ta4j MACD + RSI reversal** detection
 - Applies **cooldowns**, **confirmation bars**, and **signal scoring** to reduce noise
 - Uses **selective news enrichment** for stronger TA alerts instead of forcing web search for every alert
-- Sends Telegram alerts with concise, actionable AI summaries
+- Sends Telegram alerts in a more human-readable analyst style
 
 ## Current behavior
 - Symbols come from `APP_SYMBOLS`
@@ -19,6 +19,7 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
 - Stale candles are suppressed instead of being rebuilt forever
 - Alerts are intentionally selective; quiet days may produce no alerts
 - Strong TA alerts can fetch recent news context before AI synthesis
+- AI alert wording is designed to be easier to scan quickly and to mention news catalysts clearly when they are involved
 
 ## Decision logging
 The bot now logs explicit per-bar / per-signal decisions so you can tell why a symbol did or did not alert.
@@ -108,6 +109,13 @@ Why:
 - fewer external failure points
 - lower cost
 - more relevant use of news context
+
+## Alert style
+The AI alert output is tuned to be more human-readable:
+- plain-English setup summary
+- why it matters
+- clear next watch / invalidation
+- explicit mention of news context when relevant
 
 ## Operational notes
 - Redis is used for alert deduplication/cooldowns
