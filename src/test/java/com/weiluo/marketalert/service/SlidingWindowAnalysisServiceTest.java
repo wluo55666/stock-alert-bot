@@ -32,6 +32,7 @@ class SlidingWindowAnalysisServiceTest {
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private TelegramAlertService telegramAlertService;
     @Mock private TelegramAlertFormatter telegramAlertFormatter;
+    @Mock private MarketNewsTool marketNewsTool;
     @Mock private ZSetOperations<String, String> zSetOps;
     @Mock private ValueOperations<String, String> valueOps;
     private AppProperties properties;
@@ -43,7 +44,7 @@ class SlidingWindowAnalysisServiceTest {
         when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
         when(zSetOps.add(anyString(), anyString(), anyDouble())).thenReturn(true);
         when(zSetOps.removeRangeByScore(anyString(), anyDouble(), anyDouble())).thenReturn(1L);
-        analysisService = new SlidingWindowAnalysisService(redisTemplate, telegramAlertService, telegramAlertFormatter, properties);
+        analysisService = new SlidingWindowAnalysisService(redisTemplate, telegramAlertService, telegramAlertFormatter, marketNewsTool, properties);
     }
 
     private SymbolBar createBar(String symbol, double price, long timestamp) {
@@ -75,6 +76,7 @@ class SlidingWindowAnalysisServiceTest {
         when(zSetOps.range(anyString(), anyLong(), anyLong())).thenReturn(Set.of("100.0:1000", "102.0:2000", "104.5:3000", "106.0:4000"));
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
+        when(marketNewsTool.getLatestNews(anyString())).thenReturn("Strong catalyst from headlines");
         when(telegramAlertFormatter.formatSlidingWindowAlert(anyString(), anyString(), any(Integer.class), any(StructuredTradingAlert.class)))
                 .thenReturn("formatted sliding alert");
 
