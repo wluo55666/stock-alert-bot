@@ -32,6 +32,11 @@ public class TelegramAlertFormatter {
 
         appendBullet(message, safe(alert.summary()));
         appendBullet(message, "<b>Why it matters:</b> " + safe(alert.whyItMatters()));
+
+        if (alert.newsCatalyst() != null && !alert.newsCatalyst().isBlank()) {
+            appendBullet(message, "<b>Possible catalyst:</b> " + safe(alert.newsCatalyst()));
+        }
+
         appendBullet(message, "<b>Watch next:</b> " + safe(alert.nextWatch()));
         appendBullet(message, "<b>Invalidation:</b> " + safe(alert.invalidation()));
 
