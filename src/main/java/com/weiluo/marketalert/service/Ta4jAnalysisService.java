@@ -34,14 +34,16 @@ public class Ta4jAnalysisService {
     private final StringRedisTemplate redisTemplate;
     private final SmartTradingAgent smartTradingAgent;
     private final MarketNewsTool marketNewsTool;
+    private final TelegramAlertFormatter telegramAlertFormatter;
     private final Map<String, BarSeries> seriesMap = new ConcurrentHashMap<>();
 
-    public Ta4jAnalysisService(TelegramAlertService telegramAlertService, AppProperties properties, StringRedisTemplate redisTemplate, SmartTradingAgent smartTradingAgent, MarketNewsTool marketNewsTool) {
+    public Ta4jAnalysisService(TelegramAlertService telegramAlertService, AppProperties properties, StringRedisTemplate redisTemplate, SmartTradingAgent smartTradingAgent, MarketNewsTool marketNewsTool, TelegramAlertFormatter telegramAlertFormatter) {
         this.telegramAlertService = telegramAlertService;
         this.properties = properties;
         this.redisTemplate = redisTemplate;
         this.smartTradingAgent = smartTradingAgent;
         this.marketNewsTool = marketNewsTool;
+        this.telegramAlertFormatter = telegramAlertFormatter;
     }
 
     @PostConstruct
@@ -149,7 +151,8 @@ public class Ta4jAnalysisService {
         if (Boolean.TRUE.equals(locked)) {
             boolean useNews = score >= 4;
             String newsContext = useNews ? marketNewsTool.getLatestNews(symbol) : "No relevant news lookup performed for this alert.";
-            String aiMessage = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, confirmationBars, score, explanation, newsContext);
+            StructuredTradingAlert structuredAlert = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, confirmationBars, score, explanation, newsContext);
+            String aiMessage = telegramAlertFormatter.formatTaAlert(symbol, signal, score, structuredAlert);
             log.info("TA decision symbol={} signal={} action=ALERT score={} minimumScore={} confirmation=true newsUsed={}", symbol, signal, score, properties.ta4j().minimumScore(), useNews);
             telegramAlertService.sendAlert(aiMessage);
         } else {

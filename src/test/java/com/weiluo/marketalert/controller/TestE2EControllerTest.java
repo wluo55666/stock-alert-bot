@@ -3,6 +3,8 @@ package com.weiluo.marketalert.controller;
 import com.weiluo.marketalert.model.SymbolBar;
 import com.weiluo.marketalert.service.SmartTradingAgent;
 import com.weiluo.marketalert.service.StockDataIngestionService;
+import com.weiluo.marketalert.service.StructuredTradingAlert;
+import com.weiluo.marketalert.service.TelegramAlertFormatter;
 import com.weiluo.marketalert.service.TelegramAlertService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,8 @@ class TestE2EControllerTest {
     private SmartTradingAgent smartTradingAgent;
     @MockBean
     private TelegramAlertService telegramAlertService;
+    @MockBean
+    private TelegramAlertFormatter telegramAlertFormatter;
 
     @Test
     void testInjectBarEndpoint() throws Exception {
@@ -49,7 +53,9 @@ class TestE2EControllerTest {
     @Test
     void testTriggerAlertEndpoint() throws Exception {
         when(smartTradingAgent.synthesizeAlert(anyString(), anyString(), anyDouble(), anyDouble(), anyInt(), anyInt(), anyString(), anyString()))
-                .thenReturn("synthetic alert");
+                .thenReturn(new StructuredTradingAlert("summary", "why", "watch", "invalid", "news"));
+        when(telegramAlertFormatter.formatTaAlert(anyString(), anyString(), anyInt(), any(StructuredTradingAlert.class)))
+                .thenReturn("formatted alert");
 
         String jsonPayload = """
                 {
@@ -68,6 +74,6 @@ class TestE2EControllerTest {
                         .content(jsonPayload))
                 .andExpect(status().isOk());
 
-        verify(telegramAlertService).sendAlert("synthetic alert");
+        verify(telegramAlertService).sendAlert("formatted alert");
     }
 }
