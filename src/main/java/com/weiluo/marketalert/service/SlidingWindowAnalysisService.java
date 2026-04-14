@@ -23,12 +23,14 @@ public class SlidingWindowAnalysisService {
     private final StringRedisTemplate redisTemplate;
     private final TelegramAlertService telegramAlertService;
     private final TelegramAlertFormatter telegramAlertFormatter;
+    private final MarketNewsTool marketNewsTool;
     private final AppProperties properties;
 
-    public SlidingWindowAnalysisService(StringRedisTemplate redisTemplate, TelegramAlertService telegramAlertService, TelegramAlertFormatter telegramAlertFormatter, AppProperties properties) {
+    public SlidingWindowAnalysisService(StringRedisTemplate redisTemplate, TelegramAlertService telegramAlertService, TelegramAlertFormatter telegramAlertFormatter, MarketNewsTool marketNewsTool, AppProperties properties) {
         this.redisTemplate = redisTemplate;
         this.telegramAlertService = telegramAlertService;
         this.telegramAlertFormatter = telegramAlertFormatter;
+        this.marketNewsTool = marketNewsTool;
         this.properties = properties;
     }
 
@@ -146,16 +148,18 @@ public class SlidingWindowAnalysisService {
         Duration lockDuration = Duration.ofMinutes(properties.slidingWindow().cooldownMinutes());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
-            StructuredTradingAlert structuredAlert = buildStructuredSlidingAlert(symbol, currentPrice, percentChange, direction, startPrice);
+            boolean useNews = score >= 4;
+            String newsContext = useNews ? marketNewsTool.getLatestNews(symbol) : "";
+            StructuredTradingAlert structuredAlert = buildStructuredSlidingAlert(symbol, currentPrice, percentChange, direction, startPrice, newsContext);
             String message = telegramAlertFormatter.formatSlidingWindowAlert(symbol, direction, score, structuredAlert);
-            log.info("Sliding-window decision symbol={} signal={} action=ALERT score={} minimumScore={} move={} confirmation={} newsUsed=false", symbol, direction, score, properties.slidingWindow().minimumScore(), percentChange, confirmationCount);
+            log.info("Sliding-window decision symbol={} signal={} action=ALERT score={} minimumScore={} move={} confirmation={} newsUsed={}", symbol, direction, score, properties.slidingWindow().minimumScore(), percentChange, confirmationCount, useNews);
             telegramAlertService.sendAlert(message);
         } else {
             log.info("Sliding-window decision symbol={} signal={} action=SUPPRESS score={} minimumScore={} move={} confirmation={} newsUsed=false reason=cooldown", symbol, direction, score, properties.slidingWindow().minimumScore(), percentChange, confirmationCount);
         }
     }
 
-    private StructuredTradingAlert buildStructuredSlidingAlert(String symbol, double currentPrice, double percentChange, String direction, double startPrice) {
+    private StructuredTradingAlert buildStructuredSlidingAlert(String symbol, double currentPrice, double percentChange, String direction, double startPrice, String newsContext) {
         String summary = String.format("%s made a sharp %s move over the short-term window.", symbol, direction.equals("BREAKOUT") ? "upward" : "downward");
         String whyItMatters = String.format("Price moved %.2f%% from %.2f to %.2f fast enough to clear the short-window momentum filter.", percentChange * 100, startPrice, currentPrice);
         String nextWatch = direction.equals("BREAKOUT")
@@ -164,7 +168,8 @@ public class SlidingWindowAnalysisService {
         String invalidation = direction.equals("BREAKOUT")
                 ? String.format("a quick fade back below %.2f would weaken the breakout.", startPrice)
                 : String.format("a bounce back above %.2f would weaken the breakdown.", startPrice);
-        return new StructuredTradingAlert(summary, whyItMatters, nextWatch, invalidation, "");
+        String newsCatalyst = (newsContext == null || newsContext.isBlank() || newsContext.startsWith("No relevant")) ? "" : newsContext;
+        return new StructuredTradingAlert(summary, whyItMatters, nextWatch, invalidation, newsCatalyst);
     }
 
     private record WindowPoint(double price, long timestamp) {

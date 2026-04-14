@@ -9,7 +9,7 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
   - **Sliding-window momentum** for breakout / breakdown detection
   - **ta4j MACD + RSI reversal** detection
 - Applies **cooldowns**, **confirmation bars**, and **signal scoring** to reduce noise
-- Uses **selective news enrichment** for stronger TA alerts instead of forcing web search for every alert
+- Uses **selective news enrichment** for stronger alerts instead of forcing web search for every alert
 - Sends Telegram alerts in a more human-readable analyst style
 
 ## Current behavior
@@ -18,11 +18,14 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
 - Incomplete / zero-volume candles are ignored
 - Stale candles are suppressed instead of being rebuilt forever
 - Alerts are intentionally selective; quiet days may produce no alerts
-- Strong TA alerts can fetch recent news context before AI synthesis
-- TA alerts are now rendered through a structured formatter for more predictable readability
+- Strong alerts from both TA and sliding-window paths can fetch recent news context before final rendering
+- TA alerts are rendered through a structured formatter for more predictable readability
+- Sliding-window alerts are aligned to the same structured style
 
-## Structured TA alerts
-TA alerts now use a two-step flow:
+## Structured alerts
+Alerts now use a structured rendering flow.
+
+### TA alerts
 1. AI generates structured fields:
    - `summary`
    - `whyItMatters`
@@ -30,6 +33,10 @@ TA alerts now use a two-step flow:
    - `invalidation`
    - `newsCatalyst`
 2. application code formats the final Telegram message consistently
+
+### Sliding-window alerts
+- use the same structured formatter style
+- can also include a catalyst line when a strong short-window alert triggers news enrichment
 
 This makes the final alert:
 - easier to scan
@@ -43,6 +50,7 @@ Examples:
 - `Sliding-window decision symbol=TSLA action=SUPPRESS score=2 minimumScore=3 ...`
 - `TA decision symbol=OXY signal=NONE action=NO_TRIGGER ...`
 - `TA decision symbol=TSLA signal=BULLISH REVERSAL 📈 action=ALERT score=4 ... newsUsed=true`
+- `Sliding-window decision symbol=XYZ signal=BREAKOUT action=ALERT score=4 ... newsUsed=true`
 
 This makes it easier to distinguish:
 - no trigger
@@ -116,17 +124,18 @@ In `src/main/resources/application.yml`:
 The bot does **not** force web search on every alert.
 
 Current approach:
-- sliding-window alerts: no news enrichment
-- ta4j alerts: news lookup only for stronger alerts (currently score >= 4)
+- strong ta4j alerts: news lookup when score is high enough
+- strong sliding-window alerts: news lookup when score is high enough
+- weaker alerts: no news lookup
 
 Why:
-- lower latency
+- lower latency on weak/noisy setups
 - fewer external failure points
 - lower cost
 - more relevant use of news context
 
 ## Alert style
-The final TA alert is now code-rendered with a structured layout:
+The final alert is rendered with a structured layout:
 - title
 - summary
 - why it matters
@@ -141,7 +150,6 @@ The final TA alert is now code-rendered with a structured layout:
 - If no alerts fire on a given day, that can be normal under the current scoring thresholds
 
 ## Current limitations / next improvements
-- Extend structured rendering to sliding-window alerts if needed
 - Add volume-aware signal scoring
 - Add retry/backoff for transient Yahoo failures
 - Add ticker-specific profiles
