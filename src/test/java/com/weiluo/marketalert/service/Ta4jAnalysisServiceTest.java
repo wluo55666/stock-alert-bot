@@ -14,11 +14,9 @@ import org.ta4j.core.BaseBar;
 import java.time.Duration;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class Ta4jAnalysisServiceTest {
@@ -27,13 +25,14 @@ class Ta4jAnalysisServiceTest {
     @Mock private ValueOperations<String, String> valueOps;
     @Mock private SmartTradingAgent smartTradingAgent;
     @Mock private MarketNewsTool marketNewsTool;
+    @Mock private TelegramAlertFormatter telegramAlertFormatter;
     private AppProperties properties;
     private Ta4jAnalysisService analysisService;
 
     @BeforeEach
     void setUp() {
         properties = new AppProperties(List.of("AAPL"), null, new AppProperties.Ta4j(900, 14, 12, 26, 9, 2, 60, 3), null, null);
-        analysisService = new Ta4jAnalysisService(telegramAlertService, properties, redisTemplate, smartTradingAgent, marketNewsTool);
+        analysisService = new Ta4jAnalysisService(telegramAlertService, properties, redisTemplate, smartTradingAgent, marketNewsTool, telegramAlertFormatter);
     }
 
     @Test

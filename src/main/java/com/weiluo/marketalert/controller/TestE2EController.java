@@ -3,6 +3,8 @@ package com.weiluo.marketalert.controller;
 import com.weiluo.marketalert.model.SymbolBar;
 import com.weiluo.marketalert.service.SmartTradingAgent;
 import com.weiluo.marketalert.service.StockDataIngestionService;
+import com.weiluo.marketalert.service.StructuredTradingAlert;
+import com.weiluo.marketalert.service.TelegramAlertFormatter;
 import com.weiluo.marketalert.service.TelegramAlertService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
@@ -23,11 +25,13 @@ public class TestE2EController {
     private final StockDataIngestionService ingestionService;
     private final SmartTradingAgent smartTradingAgent;
     private final TelegramAlertService telegramAlertService;
+    private final TelegramAlertFormatter telegramAlertFormatter;
 
-    public TestE2EController(StockDataIngestionService ingestionService, SmartTradingAgent smartTradingAgent, TelegramAlertService telegramAlertService) {
+    public TestE2EController(StockDataIngestionService ingestionService, SmartTradingAgent smartTradingAgent, TelegramAlertService telegramAlertService, TelegramAlertFormatter telegramAlertFormatter) {
         this.ingestionService = ingestionService;
         this.smartTradingAgent = smartTradingAgent;
         this.telegramAlertService = telegramAlertService;
+        this.telegramAlertFormatter = telegramAlertFormatter;
     }
 
     public record InjectPayload(String symbol, double open, double high, double low, double close, double volume, long timestamp) {}
@@ -47,7 +51,7 @@ public class TestE2EController {
 
     @PostMapping("/alert")
     public ResponseEntity<Void> triggerAlert(@RequestBody AlertPayload payload) {
-        String message = smartTradingAgent.synthesizeAlert(
+        StructuredTradingAlert structuredAlert = smartTradingAgent.synthesizeAlert(
                 payload.symbol(),
                 payload.signal(),
                 payload.price(),
@@ -57,6 +61,7 @@ public class TestE2EController {
                 payload.technicalExplanation(),
                 "Synthetic E2E trigger: no live news lookup performed."
         );
+        String message = telegramAlertFormatter.formatTaAlert(payload.symbol(), payload.signal(), payload.score(), structuredAlert);
         telegramAlertService.sendAlert(message);
         return ResponseEntity.ok().build();
     }

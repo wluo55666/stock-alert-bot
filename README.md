@@ -19,10 +19,25 @@ A Java/Spring Boot stock monitoring bot that polls Yahoo Finance 15-minute candl
 - Stale candles are suppressed instead of being rebuilt forever
 - Alerts are intentionally selective; quiet days may produce no alerts
 - Strong TA alerts can fetch recent news context before AI synthesis
-- AI alert wording is designed to be easier to scan quickly and to mention news catalysts clearly when they are involved
+- TA alerts are now rendered through a structured formatter for more predictable readability
+
+## Structured TA alerts
+TA alerts now use a two-step flow:
+1. AI generates structured fields:
+   - `summary`
+   - `whyItMatters`
+   - `nextWatch`
+   - `invalidation`
+   - `newsCatalyst`
+2. application code formats the final Telegram message consistently
+
+This makes the final alert:
+- easier to scan
+- more consistent across runs
+- clearer when news is involved
 
 ## Decision logging
-The bot now logs explicit per-bar / per-signal decisions so you can tell why a symbol did or did not alert.
+The bot logs explicit per-bar / per-signal decisions so you can tell why a symbol did or did not alert.
 
 Examples:
 - `Sliding-window decision symbol=TSLA action=SUPPRESS score=2 minimumScore=3 ...`
@@ -42,7 +57,7 @@ This makes it easier to distinguish:
 - Spring Boot 3.4
 - ta4j
 - LangChain4j
-- Gemini (alert phrasing)
+- Gemini (structured alert generation)
 - Tavily (selective news enrichment)
 - Redis (dedupe / cooldown state)
 - Docker + GitHub Actions
@@ -111,11 +126,14 @@ Why:
 - more relevant use of news context
 
 ## Alert style
-The AI alert output is tuned to be more human-readable:
-- plain-English setup summary
+The final TA alert is now code-rendered with a structured layout:
+- title
+- summary
 - why it matters
-- clear next watch / invalidation
-- explicit mention of news context when relevant
+- optional news catalyst
+- watch next
+- invalidation
+- optional higher-conviction note
 
 ## Operational notes
 - Redis is used for alert deduplication/cooldowns
@@ -123,6 +141,7 @@ The AI alert output is tuned to be more human-readable:
 - If no alerts fire on a given day, that can be normal under the current scoring thresholds
 
 ## Current limitations / next improvements
+- Extend structured rendering to sliding-window alerts if needed
 - Add volume-aware signal scoring
 - Add retry/backoff for transient Yahoo failures
 - Add ticker-specific profiles
