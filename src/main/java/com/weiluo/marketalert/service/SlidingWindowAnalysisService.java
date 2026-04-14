@@ -22,11 +22,13 @@ public class SlidingWindowAnalysisService {
     private static final Logger log = LoggerFactory.getLogger(SlidingWindowAnalysisService.class);
     private final StringRedisTemplate redisTemplate;
     private final TelegramAlertService telegramAlertService;
+    private final TelegramAlertFormatter telegramAlertFormatter;
     private final AppProperties properties;
 
-    public SlidingWindowAnalysisService(StringRedisTemplate redisTemplate, TelegramAlertService telegramAlertService, AppProperties properties) {
+    public SlidingWindowAnalysisService(StringRedisTemplate redisTemplate, TelegramAlertService telegramAlertService, TelegramAlertFormatter telegramAlertFormatter, AppProperties properties) {
         this.redisTemplate = redisTemplate;
         this.telegramAlertService = telegramAlertService;
+        this.telegramAlertFormatter = telegramAlertFormatter;
         this.properties = properties;
     }
 
@@ -144,22 +146,25 @@ public class SlidingWindowAnalysisService {
         Duration lockDuration = Duration.ofMinutes(properties.slidingWindow().cooldownMinutes());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
-            String message = String.format(
-                    "🚨 <b>%s %s</b>\n\n🔹 <b>Move:</b> %.2f%% in last %d min\n🔹 <b>From:</b> $%.2f → <b>Now:</b> $%.2f\n🔹 <b>Confirmation:</b> %d bar(s) same direction\n🔹 <b>Score:</b> %d/4\n💡 <i>Action:</i> Watch for follow-through before chasing.",
-                    symbol,
-                    direction,
-                    percentChange * 100,
-                    properties.slidingWindow().durationSeconds() / 60,
-                    startPrice,
-                    currentPrice,
-                    confirmationCount,
-                    score
-            );
+            StructuredTradingAlert structuredAlert = buildStructuredSlidingAlert(symbol, currentPrice, percentChange, direction, startPrice);
+            String message = telegramAlertFormatter.formatSlidingWindowAlert(symbol, direction, score, structuredAlert);
             log.info("Sliding-window decision symbol={} signal={} action=ALERT score={} minimumScore={} move={} confirmation={} newsUsed=false", symbol, direction, score, properties.slidingWindow().minimumScore(), percentChange, confirmationCount);
             telegramAlertService.sendAlert(message);
         } else {
             log.info("Sliding-window decision symbol={} signal={} action=SUPPRESS score={} minimumScore={} move={} confirmation={} newsUsed=false reason=cooldown", symbol, direction, score, properties.slidingWindow().minimumScore(), percentChange, confirmationCount);
         }
+    }
+
+    private StructuredTradingAlert buildStructuredSlidingAlert(String symbol, double currentPrice, double percentChange, String direction, double startPrice) {
+        String summary = String.format("%s made a sharp %s move over the short-term window.", symbol, direction.equals("BREAKOUT") ? "upward" : "downward");
+        String whyItMatters = String.format("Price moved %.2f%% from %.2f to %.2f fast enough to clear the short-window momentum filter.", percentChange * 100, startPrice, currentPrice);
+        String nextWatch = direction.equals("BREAKOUT")
+                ? String.format("watch whether %s can hold above %.2f and keep pushing higher.", symbol, currentPrice)
+                : String.format("watch whether %s stays below %.2f and continues fading.", symbol, currentPrice);
+        String invalidation = direction.equals("BREAKOUT")
+                ? String.format("a quick fade back below %.2f would weaken the breakout.", startPrice)
+                : String.format("a bounce back above %.2f would weaken the breakdown.", startPrice);
+        return new StructuredTradingAlert(summary, whyItMatters, nextWatch, invalidation, "");
     }
 
     private record WindowPoint(double price, long timestamp) {
