@@ -169,7 +169,9 @@ public class SlidingWindowAnalysisService {
                 ? String.format("a quick fade back below %.2f would weaken the breakout.", startPrice)
                 : String.format("a bounce back above %.2f would weaken the breakdown.", startPrice);
         String newsCatalyst = (newsContext == null || newsContext.isBlank() || newsContext.startsWith("No relevant")) ? "" : newsContext;
-        return new StructuredTradingAlert(summary, whyItMatters, nextWatch, invalidation, newsCatalyst);
+        boolean newsRequested = newsContext != null && !newsContext.isBlank();
+        boolean newsFound = newsRequested && !newsCatalyst.isBlank();
+        return new StructuredTradingAlert(summary, whyItMatters, nextWatch, invalidation, newsCatalyst, newsRequested, newsFound);
     }
 
     private record WindowPoint(double price, long timestamp) {
