@@ -5,6 +5,8 @@ public record StructuredTradingAlert(
         String whyItMatters,
         String nextWatch,
         String invalidation,
-        String newsCatalyst
+        String newsCatalyst,
+        boolean newsCheckAttempted,
+        boolean newsFound
 ) {
 }
