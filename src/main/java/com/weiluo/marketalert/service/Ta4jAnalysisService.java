@@ -106,7 +106,7 @@ public class Ta4jAnalysisService {
             if (score >= properties.ta4j().minimumScore() && confirmed) {
                 triggerAlert(symbol, "BULLISH REVERSAL 📈", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), properties.ta4j().confirmationBars(), score, "MACD crossed above signal below zero, with RSI still below overbought. This suggests a potential reversal with early momentum confirmation.");
             } else {
-                log.info("TA decision symbol={} signal=BULLISH_REVERSAL action=SUPPRESS score={} minimumScore={} confirmation={} newsUsed=false reason=score_or_confirmation", symbol, score, properties.ta4j().minimumScore(), confirmed);
+                log.info("TA decision symbol={} signal=BULLISH_REVERSAL action=SUPPRESS score={} minimumScore={} confirmation={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=score_or_confirmation", symbol, score, properties.ta4j().minimumScore(), confirmed);
             }
         } else if (bearishRule.isSatisfied(index)) {
             int score = scoreSignal(macd.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), closePrice, index, false, properties.ta4j().confirmationBars());
@@ -114,10 +114,10 @@ public class Ta4jAnalysisService {
             if (score >= properties.ta4j().minimumScore() && confirmed) {
                 triggerAlert(symbol, "BEARISH REVERSAL 📉", closePrice.getValue(index).doubleValue(), rsi.getValue(index).doubleValue(), properties.ta4j().confirmationBars(), score, "MACD crossed below signal above zero, with RSI still above oversold. This suggests fading upside momentum and a potential downside reversal.");
             } else {
-                log.info("TA decision symbol={} signal=BEARISH_REVERSAL action=SUPPRESS score={} minimumScore={} confirmation={} newsUsed=false reason=score_or_confirmation", symbol, score, properties.ta4j().minimumScore(), confirmed);
+                log.info("TA decision symbol={} signal=BEARISH_REVERSAL action=SUPPRESS score={} minimumScore={} confirmation={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=score_or_confirmation", symbol, score, properties.ta4j().minimumScore(), confirmed);
             }
         } else {
-            log.info("TA decision symbol={} signal=NONE action=NO_TRIGGER newsUsed=false reason=no_crossover", symbol);
+            log.info("TA decision symbol={} signal=NONE action=NO_TRIGGER newsRequested=false newsResult=not_requested newsDisplayed=false reason=no_crossover", symbol);
         }
     }
 
@@ -149,14 +149,25 @@ public class Ta4jAnalysisService {
         Duration lockDuration = Duration.ofMinutes(properties.ta4j().cooldownMinutes());
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(deduplicationKey, "locked", lockDuration);
         if (Boolean.TRUE.equals(locked)) {
-            boolean useNews = score >= 4;
-            String newsContext = useNews ? marketNewsTool.getLatestNews(symbol) : "No relevant news lookup performed for this alert.";
+            boolean newsRequested = score >= 4;
+            String newsContext = newsRequested ? marketNewsTool.getLatestNews(symbol) : "No relevant news lookup performed for this alert.";
+            boolean newsFound = newsRequested && newsContext != null && !newsContext.isBlank() && !newsContext.startsWith("No relevant");
             StructuredTradingAlert structuredAlert = smartTradingAgent.synthesizeAlert(symbol, signal, currentPrice, rsiValue, confirmationBars, score, explanation, newsContext);
-            String aiMessage = telegramAlertFormatter.formatTaAlert(symbol, signal, score, structuredAlert);
-            log.info("TA decision symbol={} signal={} action=ALERT score={} minimumScore={} confirmation=true newsUsed={}", symbol, signal, score, properties.ta4j().minimumScore(), useNews);
+            StructuredTradingAlert normalizedAlert = new StructuredTradingAlert(
+                    structuredAlert.summary(),
+                    structuredAlert.whyItMatters(),
+                    structuredAlert.nextWatch(),
+                    structuredAlert.invalidation(),
+                    newsFound ? structuredAlert.newsCatalyst() : "",
+                    newsRequested,
+                    newsFound
+            );
+            String aiMessage = telegramAlertFormatter.formatTaAlert(symbol, signal, score, normalizedAlert);
+            boolean newsDisplayed = newsFound && normalizedAlert.newsCatalyst() != null && !normalizedAlert.newsCatalyst().isBlank();
+            log.info("TA decision symbol={} signal={} action=ALERT score={} minimumScore={} confirmation=true newsRequested={} newsResult={} newsDisplayed={}", symbol, signal, score, properties.ta4j().minimumScore(), newsRequested, newsFound ? "found" : (newsRequested ? "empty" : "not_requested"), newsDisplayed);
             telegramAlertService.sendAlert(aiMessage);
         } else {
-            log.info("TA decision symbol={} signal={} action=SUPPRESS score={} minimumScore={} confirmation=true newsUsed=false reason=cooldown", symbol, signal, score, properties.ta4j().minimumScore());
+            log.info("TA decision symbol={} signal={} action=SUPPRESS score={} minimumScore={} confirmation=true newsRequested=false newsResult=not_requested newsDisplayed=false reason=cooldown", symbol, signal, score, properties.ta4j().minimumScore());
         }
     }
 }
