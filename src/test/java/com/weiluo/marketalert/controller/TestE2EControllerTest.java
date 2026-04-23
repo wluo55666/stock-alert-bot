@@ -53,7 +53,7 @@ class TestE2EControllerTest {
     @Test
     void testTriggerAlertEndpoint() throws Exception {
         when(smartTradingAgent.synthesizeAlert(anyString(), anyString(), anyDouble(), anyDouble(), anyInt(), anyInt(), anyString(), anyString()))
-                .thenReturn(new StructuredTradingAlert("summary", "why", "watch", "invalid", "news"));
+                .thenReturn(new StructuredTradingAlert("summary", "why", "watch", "invalid", "news", false, false));
         when(telegramAlertFormatter.formatTaAlert(anyString(), anyString(), anyInt(), any(StructuredTradingAlert.class)))
                 .thenReturn("formatted alert");
 
