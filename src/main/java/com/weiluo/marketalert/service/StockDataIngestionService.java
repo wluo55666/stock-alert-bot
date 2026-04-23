@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.ta4j.core.BaseBar;
 import org.ta4j.core.num.DoubleNum;
@@ -21,6 +22,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class StockDataIngestionService {
     private static final Logger log = LoggerFactory.getLogger(StockDataIngestionService.class);
+    private static final int MAX_FETCH_ATTEMPTS = 3;
+    private static final long RETRY_BACKOFF_MS = 750;
+
     private final AppProperties properties;
     private final RestClient restClient;
     private final ApplicationEventPublisher eventPublisher;
@@ -52,7 +56,7 @@ public class StockDataIngestionService {
                 if (bar != null && shouldPublish(symbol, bar)) {
                     injectBar(bar);
                 }
-                Thread.sleep(500); // Stagger requests
+                Thread.sleep(500);
             } catch (Exception e) {
                 log.error("Error in Yahoo Finance polling loop for {}: {}", symbol, e.getMessage());
             }
@@ -60,37 +64,63 @@ public class StockDataIngestionService {
     }
 
     private SymbolBar fetchLatestCandle(String symbol) {
-        try {
-            YahooResponse response = restClient.get().uri("/{symbol}?interval=15m&range=5d", symbol).retrieve().body(YahooResponse.class);
-            if (response == null || response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) {
-                log.debug("No result data for {}.", symbol);
+        for (int attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+            try {
+                YahooResponse response = restClient.get().uri("/{symbol}?interval=15m&range=5d", symbol).retrieve().body(YahooResponse.class);
+                if (response == null || response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) {
+                    log.debug("No result data for {}.", symbol);
+                    return null;
+                }
+                Result result = response.chart().result().get(0);
+                if (result.timestamp() == null || result.timestamp().isEmpty()) return null;
+                Quote quote = result.indicators().quote().get(0);
+                int lastIdx = result.timestamp().size() - 1;
+                while (lastIdx >= 0 && isIncompleteBar(quote, lastIdx)) {
+                    lastIdx--;
+                }
+                if (lastIdx < 0) {
+                    log.debug("No completed candle available for {}.", symbol);
+                    return null;
+                }
+                Instant beginTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
+                Instant endTime = beginTime.plusSeconds(900);
+                if (isStaleObservation(symbol, endTime)) {
+                    return null;
+                }
+                BaseBar bar = new BaseBar(Duration.ofMinutes(15), beginTime, endTime,
+                        DoubleNum.valueOf(quote.open().get(lastIdx)), DoubleNum.valueOf(quote.high().get(lastIdx)),
+                        DoubleNum.valueOf(quote.low().get(lastIdx)), DoubleNum.valueOf(quote.close().get(lastIdx)),
+                        DoubleNum.valueOf(quote.volume().get(lastIdx)), DoubleNum.valueOf(0), 1L);
+                return new SymbolBar(symbol, bar);
+            } catch (ResourceAccessException e) {
+                if (attempt < MAX_FETCH_ATTEMPTS) {
+                    log.warn("Yahoo fetch transient failure for {} on attempt {}/{}: {}. Retrying...", symbol, attempt, MAX_FETCH_ATTEMPTS, rootMessage(e));
+                    sleepBeforeRetry();
+                } else {
+                    log.warn("Yahoo fetch failed for {} after {}/{} attempts due to network/TLS issue: {}", symbol, attempt, MAX_FETCH_ATTEMPTS, rootMessage(e));
+                }
+            } catch (Exception e) {
+                log.warn("Yahoo response processing failed for {}: {}", symbol, rootMessage(e));
                 return null;
             }
-            Result result = response.chart().result().get(0);
-            if (result.timestamp() == null || result.timestamp().isEmpty()) return null;
-            Quote quote = result.indicators().quote().get(0);
-            int lastIdx = result.timestamp().size() - 1;
-            while (lastIdx >= 0 && isIncompleteBar(quote, lastIdx)) {
-                lastIdx--;
-            }
-            if (lastIdx < 0) {
-                log.debug("No completed candle available for {}.", symbol);
-                return null;
-            }
-            Instant beginTime = Instant.ofEpochSecond(result.timestamp().get(lastIdx));
-            Instant endTime = beginTime.plusSeconds(900);
-            if (isStaleObservation(symbol, endTime)) {
-                return null;
-            }
-            BaseBar bar = new BaseBar(Duration.ofMinutes(15), beginTime, endTime,
-                    DoubleNum.valueOf(quote.open().get(lastIdx)), DoubleNum.valueOf(quote.high().get(lastIdx)),
-                    DoubleNum.valueOf(quote.low().get(lastIdx)), DoubleNum.valueOf(quote.close().get(lastIdx)),
-                    DoubleNum.valueOf(quote.volume().get(lastIdx)), DoubleNum.valueOf(0), 1L);
-            return new SymbolBar(symbol, bar);
-        } catch (Exception e) {
-            log.warn("Failed to parse Yahoo Finance response for {}: {}", symbol, e.getMessage());
-            return null;
         }
+        return null;
+    }
+
+    private void sleepBeforeRetry() {
+        try {
+            Thread.sleep(RETRY_BACKOFF_MS);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private String rootMessage(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current.getMessage() != null ? current.getMessage() : throwable.getMessage();
     }
 
     public void injectBar(SymbolBar bar) {
