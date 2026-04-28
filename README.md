@@ -128,11 +128,17 @@ Current approach:
 - strong sliding-window alerts: news lookup when score is high enough
 - weaker alerts: no news lookup
 
+News lookup scope is broader than just ticker headlines:
+- company-specific news
+- sector / industry trend news
+- broader market / sentiment themes relevant to the ticker
+
 Why:
 - lower latency on weak/noisy setups
 - fewer external failure points
 - lower cost
 - more relevant use of news context
+- better chance of finding a real catalyst when the move is sector- or macro-driven
 
 ## Alert style
 The final alert is rendered with a structured layout:

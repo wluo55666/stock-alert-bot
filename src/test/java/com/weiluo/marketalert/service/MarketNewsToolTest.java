@@ -31,7 +31,6 @@ class MarketNewsToolTest {
 
     @Test
     void testGetLatestNews() {
-        // Arrange
         WebSearchOrganicResult mockResult = new WebSearchOrganicResult(
                 "AAPL hits new high",
                 URI.create("https://example.com/aapl"),
@@ -39,15 +38,13 @@ class MarketNewsToolTest {
                 "Apple stock reached unprecedented levels today."
         );
         WebSearchResults results = new WebSearchResults(dev.langchain4j.web.search.WebSearchInformationResult.from(1L), List.of(mockResult));
-        
+
         when(webSearchEngine.search(anyString())).thenReturn(results);
 
-        // Act
         String news = marketNewsTool.getLatestNews("AAPL");
 
-        // Assert
         assertTrue(news.contains("AAPL hits new high"));
         assertTrue(news.contains("https://example.com/aapl"));
-        assertTrue(news.contains("Levels today") || news.contains("unprecedented"));
+        assertTrue(news.contains("unprecedented") || news.contains("levels"));
     }
 }
