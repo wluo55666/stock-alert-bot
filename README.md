@@ -155,8 +155,19 @@ The final alert is rendered with a structured layout:
 - The app logs new 15-minute candle publications and signal decisions
 - If no alerts fire on a given day, that can be normal under the current scoring thresholds
 
+## Off-hours MVP
+The bot now has an initial Yahoo-based off-hours detector that:
+- uses a shorter intraday chart interval (`1m`) for off-hours checks
+- compares the latest off-hours price against the last regular-session close
+- classifies `Premarket` vs `After-hours`
+- alerts on threshold-based moves
+- can enrich stronger off-hours moves with broader company/sector/market news context
+
+This off-hours path is intentionally separate from the regular 15-minute technical strategies.
+
 ## Current limitations / next improvements
 - Add volume-aware signal scoring
 - Add retry/backoff for transient Yahoo failures
 - Add ticker-specific profiles
 - Improve support/resistance and multi-timeframe context
+- Refine off-hours session boundary / prior-close logic after real-world validation
