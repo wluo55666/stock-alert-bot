@@ -40,7 +40,7 @@ class SlidingWindowAnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.02, 2, 60, 0.035, 3), null, null, null);
+        properties = new AppProperties(List.of("AAPL"), new AppProperties.SlidingWindow(300, 0.02, 2, 60, 0.035, 3), null, null, null, null);
         when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
         when(zSetOps.add(anyString(), anyString(), anyDouble())).thenReturn(true);
         when(zSetOps.removeRangeByScore(anyString(), anyDouble(), anyDouble())).thenReturn(1L);

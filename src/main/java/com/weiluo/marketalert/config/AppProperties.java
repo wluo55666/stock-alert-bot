@@ -5,13 +5,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.List;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(List<String> symbols, SlidingWindow slidingWindow, Ta4j ta4j, Telegram telegram, Ai ai) {
+public record AppProperties(List<String> symbols, SlidingWindow slidingWindow, Ta4j ta4j, OffHours offHours, Telegram telegram, Ai ai) {
     public record SlidingWindow(int durationSeconds, double thresholdPercent, int confirmationBars, int cooldownMinutes,
                                 double strongMovePercent, int minimumScore) {
     }
 
     public record Ta4j(int barDurationSeconds, int rsiTimeframe, int macdShort, int macdLong, int macdSignal,
                        int confirmationBars, int cooldownMinutes, int minimumScore) {
+    }
+
+    public record OffHours(boolean enabled, double watchThresholdPercent, double alertThresholdPercent, int cooldownMinutes) {
     }
 
     public record Ai(String tavilyApiKey) {
