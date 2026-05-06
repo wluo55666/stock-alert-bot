@@ -31,6 +31,11 @@ app:
     confirmation-bars: 2
     cooldown-minutes: 60
     minimum-score: 3
+  off-hours:
+    enabled: true
+    watch-threshold-percent: 0.02
+    alert-threshold-percent: 0.04
+    cooldown-minutes: 90
   telegram:
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     chat-id: ${TELEGRAM_CHAT_ID:}
