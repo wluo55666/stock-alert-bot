@@ -53,8 +53,14 @@ public class OffHoursAnalysisService {
         for (String symbol : symbols) {
             try {
                 OffHoursSnapshot snapshot = fetchOffHoursSnapshot(symbol);
-                if (snapshot == null) continue;
-                if (Math.abs(snapshot.movePercent()) < properties.offHours().watchThresholdPercent()) continue;
+                if (snapshot == null) {
+                    log.info("Off-hours decision symbol={} session=UNKNOWN action=NO_TRIGGER newsRequested=false newsResult=not_requested newsDisplayed=false reason=no_snapshot", symbol);
+                    continue;
+                }
+                if (Math.abs(snapshot.movePercent()) < properties.offHours().watchThresholdPercent()) {
+                    log.info("Off-hours decision symbol={} session={} action=NO_TRIGGER move={} threshold={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=below_threshold", symbol, snapshot.sessionLabel(), snapshot.movePercent(), properties.offHours().watchThresholdPercent());
+                    continue;
+                }
                 triggerOffHoursAlert(symbol, snapshot);
                 Thread.sleep(300);
             } catch (Exception e) {
@@ -124,7 +130,10 @@ public class OffHoursAnalysisService {
     private void triggerOffHoursAlert(String symbol, OffHoursSnapshot snapshot) {
         String key = "offhours_alert:" + symbol + ":" + snapshot.sessionLabel().toLowerCase(Locale.ROOT);
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(key, "locked", Duration.ofMinutes(properties.offHours().cooldownMinutes()));
-        if (!Boolean.TRUE.equals(locked)) return;
+        if (!Boolean.TRUE.equals(locked)) {
+            log.info("Off-hours decision symbol={} session={} action=SUPPRESS move={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=cooldown", symbol, snapshot.sessionLabel(), snapshot.movePercent());
+            return;
+        }
 
         boolean useNews = Math.abs(snapshot.movePercent()) >= properties.offHours().alertThresholdPercent();
         String newsContext = useNews ? marketNewsTool.getLatestNews(symbol) : "";
