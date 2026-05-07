@@ -53,8 +53,14 @@ public class OffHoursAnalysisService {
         for (String symbol : symbols) {
             try {
                 OffHoursSnapshot snapshot = fetchOffHoursSnapshot(symbol);
-                if (snapshot == null) continue;
-                if (Math.abs(snapshot.movePercent()) < properties.offHours().watchThresholdPercent()) continue;
+                if (snapshot == null) {
+                    log.info("Off-hours decision symbol={} session=UNKNOWN action=NO_TRIGGER newsRequested=false newsResult=not_requested newsDisplayed=false reason=no_snapshot", symbol);
+                    continue;
+                }
+                if (Math.abs(snapshot.movePercent()) < properties.offHours().watchThresholdPercent()) {
+                    log.info("Off-hours decision symbol={} session={} action=NO_TRIGGER move={} threshold={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=below_threshold", symbol, snapshot.sessionLabel(), snapshot.movePercent(), properties.offHours().watchThresholdPercent());
+                    continue;
+                }
                 triggerOffHoursAlert(symbol, snapshot);
                 Thread.sleep(300);
             } catch (Exception e) {
@@ -79,10 +85,10 @@ public class OffHoursAnalysisService {
         if (result.timestamp() == null || result.timestamp().isEmpty()) return null;
         Quote quote = result.indicators().quote().get(0);
 
-        int latestIdx = findLatestValidClose(quote, result.timestamp().size() - 1);
+        int latestIdx = findLatestOffHoursIndex(result.timestamp(), quote);
         if (latestIdx < 0) return null;
 
-        int previousCloseIdx = findPreviousRegularCloseIndex(result.timestamp(), quote);
+        int previousCloseIdx = findLastRegularSessionIndex(result.timestamp(), quote);
         if (previousCloseIdx < 0) return null;
 
         double latestPrice = quote.close().get(latestIdx);
@@ -94,23 +100,38 @@ public class OffHoursAnalysisService {
         return new OffHoursSnapshot(previousClose, latestPrice, movePercent, sessionLabel, Instant.ofEpochSecond(result.timestamp().get(latestIdx)));
     }
 
-    private int findLatestValidClose(Quote quote, int startIdx) {
-        for (int i = startIdx; i >= 0; i--) {
-            if (quote.close().get(i) != null) return i;
-        }
-        return -1;
-    }
-
-    private int findPreviousRegularCloseIndex(List<Long> timestamps, Quote quote) {
+    private int findLatestOffHoursIndex(List<Long> timestamps, Quote quote) {
         for (int i = timestamps.size() - 1; i >= 0; i--) {
-            if (quote.close().get(i) == null) continue;
-            ZonedDateTime ts = Instant.ofEpochSecond(timestamps.get(i)).atZone(MARKET_TZ);
-            int hhmm = ts.getHour() * 100 + ts.getMinute();
-            if (hhmm >= 1555 && hhmm <= 1605 && ts.getDayOfWeek() != DayOfWeek.SATURDAY && ts.getDayOfWeek() != DayOfWeek.SUNDAY) {
+            Double close = quote.close().get(i);
+            if (close == null) continue;
+            if (isOffHoursTimestamp(timestamps.get(i))) {
                 return i;
             }
         }
         return -1;
+    }
+
+    private int findLastRegularSessionIndex(List<Long> timestamps, Quote quote) {
+        for (int i = timestamps.size() - 1; i >= 0; i--) {
+            Double close = quote.close().get(i);
+            if (close == null) continue;
+            if (isRegularSessionTimestamp(timestamps.get(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean isRegularSessionTimestamp(long epochSecond) {
+        ZonedDateTime ts = Instant.ofEpochSecond(epochSecond).atZone(MARKET_TZ);
+        int hhmm = ts.getHour() * 100 + ts.getMinute();
+        return hhmm >= 930 && hhmm < 1600 && ts.getDayOfWeek() != DayOfWeek.SATURDAY && ts.getDayOfWeek() != DayOfWeek.SUNDAY;
+    }
+
+    private boolean isOffHoursTimestamp(long epochSecond) {
+        ZonedDateTime ts = Instant.ofEpochSecond(epochSecond).atZone(MARKET_TZ);
+        int hhmm = ts.getHour() * 100 + ts.getMinute();
+        return (hhmm < 930 || hhmm >= 1600) || ts.getDayOfWeek() == DayOfWeek.SATURDAY || ts.getDayOfWeek() == DayOfWeek.SUNDAY;
     }
 
     private String classifySession(long epochSecond) {
@@ -124,7 +145,10 @@ public class OffHoursAnalysisService {
     private void triggerOffHoursAlert(String symbol, OffHoursSnapshot snapshot) {
         String key = "offhours_alert:" + symbol + ":" + snapshot.sessionLabel().toLowerCase(Locale.ROOT);
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(key, "locked", Duration.ofMinutes(properties.offHours().cooldownMinutes()));
-        if (!Boolean.TRUE.equals(locked)) return;
+        if (!Boolean.TRUE.equals(locked)) {
+            log.info("Off-hours decision symbol={} session={} action=SUPPRESS move={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=cooldown", symbol, snapshot.sessionLabel(), snapshot.movePercent());
+            return;
+        }
 
         boolean useNews = Math.abs(snapshot.movePercent()) >= properties.offHours().alertThresholdPercent();
         String newsContext = useNews ? marketNewsTool.getLatestNews(symbol) : "";
