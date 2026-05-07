@@ -9,7 +9,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.client.RestClient;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -69,28 +68,47 @@ class OffHoursAnalysisServiceTest {
     }
 
     @Test
-    void testFindPreviousRegularCloseIndex() {
+    void testFindLastRegularSessionIndexUsesStrictRegularHours() {
         List<Long> timestamps = List.of(
-                ZonedDateTime.of(2026, 5, 5, 15, 30, 0, 0, ZoneId.of("America/New_York")).toEpochSecond(),
-                ZonedDateTime.of(2026, 5, 5, 16, 0, 0, 0, ZoneId.of("America/New_York")).toEpochSecond(),
-                ZonedDateTime.of(2026, 5, 6, 8, 0, 0, 0, ZoneId.of("America/New_York")).toEpochSecond()
+                ZonedDateTime.of(2026, 5, 7, 15, 59, 0, 0, ZoneId.of("America/New_York")).toEpochSecond(),
+                ZonedDateTime.of(2026, 5, 7, 16, 0, 0, 0, ZoneId.of("America/New_York")).toEpochSecond(),
+                ZonedDateTime.of(2026, 5, 7, 16, 1, 0, 0, ZoneId.of("America/New_York")).toEpochSecond()
         );
         OffHoursAnalysisService.Quote quote = new OffHoursAnalysisService.Quote(
-                List.of(100.0, 101.0, 103.0),
-                List.of(100.0, 101.0, 103.0),
-                List.of(100.0, 101.0, 103.0),
-                List.of(100.0, 101.0, 103.0),
+                List.of(70.14, 75.50, 75.50),
+                List.of(70.14, 75.50, 75.50),
+                List.of(70.14, 75.50, 75.50),
+                List.of(70.14, 75.50, 75.50),
                 List.of(1000L, 1000L, 1000L)
         );
 
-        int idx = invokeFindPreviousRegularCloseIndex(timestamps, quote);
-        assertEquals(1, idx);
+        int idx = invokeFindLastRegularSessionIndex(timestamps, quote);
+        assertEquals(0, idx);
+    }
+
+    @Test
+    void testFindLatestOffHoursIndexFindsAfterHoursPoint() {
+        List<Long> timestamps = List.of(
+                ZonedDateTime.of(2026, 5, 7, 15, 59, 0, 0, ZoneId.of("America/New_York")).toEpochSecond(),
+                ZonedDateTime.of(2026, 5, 7, 16, 0, 0, 0, ZoneId.of("America/New_York")).toEpochSecond(),
+                ZonedDateTime.of(2026, 5, 7, 19, 59, 0, 0, ZoneId.of("America/New_York")).toEpochSecond()
+        );
+        OffHoursAnalysisService.Quote quote = new OffHoursAnalysisService.Quote(
+                List.of(70.14, 75.50, 75.50),
+                List.of(70.14, 75.50, 75.50),
+                List.of(70.14, 75.50, 75.50),
+                List.of(70.14, 75.50, 75.50),
+                List.of(1000L, 1000L, 1000L)
+        );
+
+        int idx = invokeFindLatestOffHoursIndex(timestamps, quote);
+        assertEquals(2, idx);
     }
 
     @Test
     void testOffHoursMoveThresholdMath() {
-        double previousClose = 100.0;
-        double latestPrice = 104.5;
+        double previousClose = 70.14;
+        double latestPrice = 75.50;
         double move = (latestPrice - previousClose) / previousClose;
         assertTrue(move >= 0.04);
     }
@@ -114,9 +132,19 @@ class OffHoursAnalysisServiceTest {
         }
     }
 
-    private int invokeFindPreviousRegularCloseIndex(List<Long> timestamps, OffHoursAnalysisService.Quote quote) {
+    private int invokeFindLastRegularSessionIndex(List<Long> timestamps, OffHoursAnalysisService.Quote quote) {
         try {
-            var method = OffHoursAnalysisService.class.getDeclaredMethod("findPreviousRegularCloseIndex", List.class, OffHoursAnalysisService.Quote.class);
+            var method = OffHoursAnalysisService.class.getDeclaredMethod("findLastRegularSessionIndex", List.class, OffHoursAnalysisService.Quote.class);
+            method.setAccessible(true);
+            return (int) method.invoke(service, timestamps, quote);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private int invokeFindLatestOffHoursIndex(List<Long> timestamps, OffHoursAnalysisService.Quote quote) {
+        try {
+            var method = OffHoursAnalysisService.class.getDeclaredMethod("findLatestOffHoursIndex", List.class, OffHoursAnalysisService.Quote.class);
             method.setAccessible(true);
             return (int) method.invoke(service, timestamps, quote);
         } catch (Exception e) {
