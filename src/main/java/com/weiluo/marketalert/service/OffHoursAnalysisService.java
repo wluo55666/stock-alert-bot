@@ -85,7 +85,7 @@ public class OffHoursAnalysisService {
     }
 
     private OffHoursSnapshot fetchOffHoursSnapshot(String symbol) {
-        YahooChartResponse response = restClient.get().uri("/{symbol}?interval=1m&range=1d", symbol).retrieve().body(YahooChartResponse.class);
+        YahooChartResponse response = restClient.get().uri("/{symbol}?interval=1m&range=1d&includePrePost=true", symbol).retrieve().body(YahooChartResponse.class);
         if (response == null || response.chart() == null || response.chart().result() == null || response.chart().result().isEmpty()) return null;
 
         Result result = response.chart().result().get(0);
