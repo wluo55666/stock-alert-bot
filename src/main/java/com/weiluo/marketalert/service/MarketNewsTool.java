@@ -11,10 +11,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 @Component
 public class MarketNewsTool {
@@ -58,20 +61,112 @@ public class MarketNewsTool {
                 }
             }
 
-            if (combinedResults.isEmpty()) {
+            String formatted = formatUsefulResults(combinedResults, tickerSymbol);
+            if (formatted == null || formatted.isBlank()) {
                 return "No relevant company, sector, or market news found for " + tickerSymbol;
             }
-
-            return combinedResults.stream()
-                    .distinct()
-                    .limit(5)
-                    .map(result -> "Title: " + result.title() + "\nSource: " + result.url() + "\nSummary: " + result.content())
-                    .collect(Collectors.joining("\n\n"));
+            return formatted;
 
         } catch (Exception e) {
             log.error("Failed to execute web search for {}", tickerSymbol, e);
             return "Error searching for company/sector/market news: " + e.getMessage();
         }
+    }
+
+    private String formatUsefulResults(List<WebSearchOrganicResult> results, String tickerSymbol) {
+        if (results == null || results.isEmpty()) {
+            return "";
+        }
+
+        Set<String> bullets = new LinkedHashSet<>();
+        for (WebSearchOrganicResult result : results) {
+            if (result == null || !isUsefulResult(result, tickerSymbol)) {
+                continue;
+            }
+
+            String title = cleanText(result.title());
+            String summary = chooseSummary(result);
+            if (summary == null || summary.isBlank()) {
+                continue;
+            }
+
+            if (title == null || title.isBlank()) {
+                bullets.add(summary);
+            } else {
+                bullets.add(title + ": " + summary);
+            }
+
+            if (bullets.size() >= 2) {
+                break;
+            }
+        }
+
+        return String.join("\n", bullets);
+    }
+
+    private boolean isUsefulResult(WebSearchOrganicResult result, String tickerSymbol) {
+        String title = lower(result.title());
+        String content = lower(result.content());
+        String url = lower(cleanUrl(result.url() != null ? result.url().toString() : ""));
+        String ticker = tickerSymbol.toLowerCase(Locale.ROOT);
+
+        if ((content == null || content.isBlank()) && (title == null || title.isBlank())) {
+            return false;
+        }
+
+        if (content == null || content.isBlank() || "null".equals(content.trim())) {
+            return false;
+        }
+
+        if (containsAny(title, "stock price", "price quote", "quote & news", "stock updates - page", "google finance", "robinhood", "cnn markets")
+                || containsAny(url, "/quote/", "/stocks/")) {
+            return false;
+        }
+
+        return title.contains(ticker)
+                || content.contains(ticker)
+                || containsAny(content, "earnings", "guidance", "acquisition", "lawsuit", "downgrade", "upgrade", "forecast", "revenue", "payment", "oil", "ev", "fintech", "sector");
+    }
+
+    private String chooseSummary(WebSearchOrganicResult result) {
+        String content = cleanText(result.content());
+        if (content != null && !content.isBlank() && !"null".equalsIgnoreCase(content)) {
+            return trimSentence(content, 220);
+        }
+        String snippet = cleanText(result.snippet());
+        if (snippet != null && !snippet.isBlank() && !"null".equalsIgnoreCase(snippet)) {
+            return trimSentence(snippet, 220);
+        }
+        return "";
+    }
+
+    private String trimSentence(String text, int maxLen) {
+        if (text == null) return "";
+        String trimmed = text.trim().replaceAll("\\s+", " ");
+        if (trimmed.length() <= maxLen) return trimmed;
+        return trimmed.substring(0, maxLen - 1).trim() + "…";
+    }
+
+    private String cleanText(String text) {
+        if (text == null) return "";
+        return text.replaceAll("\\s+", " ").trim();
+    }
+
+    private String cleanUrl(String url) {
+        if (url == null || url.isBlank()) return "";
+        return URLDecoder.decode(url, StandardCharsets.UTF_8);
+    }
+
+    private boolean containsAny(String text, String... needles) {
+        if (text == null) return false;
+        for (String needle : needles) {
+            if (text.contains(needle)) return true;
+        }
+        return false;
+    }
+
+    private String lower(String text) {
+        return text == null ? "" : text.toLowerCase(Locale.ROOT);
     }
 
     private List<String> buildQueries(String tickerSymbol) {
