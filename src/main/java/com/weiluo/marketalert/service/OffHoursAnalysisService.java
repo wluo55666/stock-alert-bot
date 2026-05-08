@@ -20,6 +20,7 @@ import java.util.Locale;
 public class OffHoursAnalysisService {
     private static final Logger log = LoggerFactory.getLogger(OffHoursAnalysisService.class);
     private static final ZoneId MARKET_TZ = ZoneId.of("America/New_York");
+    private static final Duration SNAPSHOT_DEDUPE_TTL = Duration.ofDays(7);
 
     private final AppProperties properties;
     private final RestClient restClient;
@@ -150,8 +151,21 @@ public class OffHoursAnalysisService {
     }
 
     private void triggerOffHoursAlert(String symbol, OffHoursSnapshot snapshot) {
-        String key = "offhours_alert:" + symbol + ":" + snapshot.sessionLabel().toLowerCase(Locale.ROOT);
-        Boolean locked = redisTemplate.opsForValue().setIfAbsent(key, "locked", Duration.ofMinutes(properties.offHours().cooldownMinutes()));
+        String snapshotKey = snapshotDedupeKey(symbol, snapshot);
+        Boolean snapshotSeen = redisTemplate.opsForValue().setIfAbsent(snapshotKey, "sent", SNAPSHOT_DEDUPE_TTL);
+        if (!Boolean.TRUE.equals(snapshotSeen)) {
+            log.info("Off-hours decision symbol={} session={} action=SUPPRESS previousClose={} latestPrice={} observedAt={} move={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=duplicate_snapshot",
+                    symbol,
+                    snapshot.sessionLabel(),
+                    snapshot.previousClose(),
+                    snapshot.latestPrice(),
+                    snapshot.observedAt(),
+                    snapshot.movePercent());
+            return;
+        }
+
+        String cooldownKey = "offhours_alert:" + symbol + ":" + snapshot.sessionLabel().toLowerCase(Locale.ROOT);
+        Boolean locked = redisTemplate.opsForValue().setIfAbsent(cooldownKey, "locked", Duration.ofMinutes(properties.offHours().cooldownMinutes()));
         if (!Boolean.TRUE.equals(locked)) {
             log.info("Off-hours decision symbol={} session={} action=SUPPRESS previousClose={} latestPrice={} observedAt={} move={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=cooldown",
                     symbol,
@@ -190,6 +204,15 @@ public class OffHoursAnalysisService {
                 useNews ? (alert.newsFound() ? "found" : "empty") : "not_requested",
                 alert.newsFound());
         telegramAlertService.sendAlert(message);
+    }
+
+    private String snapshotDedupeKey(String symbol, OffHoursSnapshot snapshot) {
+        long priceBasisPoints = Math.round(snapshot.latestPrice() * 10_000);
+        return "offhours_alert_snapshot:"
+                + symbol + ':'
+                + snapshot.sessionLabel().toLowerCase(Locale.ROOT) + ':'
+                + snapshot.observedAt().getEpochSecond() + ':'
+                + priceBasisPoints;
     }
 
     private record OffHoursSnapshot(double previousClose, double latestPrice, double movePercent, String sessionLabel, Instant observedAt) {
