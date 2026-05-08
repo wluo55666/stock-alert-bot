@@ -58,7 +58,14 @@ public class OffHoursAnalysisService {
                     continue;
                 }
                 if (Math.abs(snapshot.movePercent()) < properties.offHours().watchThresholdPercent()) {
-                    log.info("Off-hours decision symbol={} session={} action=NO_TRIGGER move={} threshold={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=below_threshold", symbol, snapshot.sessionLabel(), snapshot.movePercent(), properties.offHours().watchThresholdPercent());
+                    log.info("Off-hours decision symbol={} session={} action=NO_TRIGGER previousClose={} latestPrice={} observedAt={} move={} threshold={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=below_threshold",
+                            symbol,
+                            snapshot.sessionLabel(),
+                            snapshot.previousClose(),
+                            snapshot.latestPrice(),
+                            snapshot.observedAt(),
+                            snapshot.movePercent(),
+                            properties.offHours().watchThresholdPercent());
                     continue;
                 }
                 triggerOffHoursAlert(symbol, snapshot);
@@ -146,7 +153,13 @@ public class OffHoursAnalysisService {
         String key = "offhours_alert:" + symbol + ":" + snapshot.sessionLabel().toLowerCase(Locale.ROOT);
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(key, "locked", Duration.ofMinutes(properties.offHours().cooldownMinutes()));
         if (!Boolean.TRUE.equals(locked)) {
-            log.info("Off-hours decision symbol={} session={} action=SUPPRESS move={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=cooldown", symbol, snapshot.sessionLabel(), snapshot.movePercent());
+            log.info("Off-hours decision symbol={} session={} action=SUPPRESS previousClose={} latestPrice={} observedAt={} move={} newsRequested=false newsResult=not_requested newsDisplayed=false reason=cooldown",
+                    symbol,
+                    snapshot.sessionLabel(),
+                    snapshot.previousClose(),
+                    snapshot.latestPrice(),
+                    snapshot.observedAt(),
+                    snapshot.movePercent());
             return;
         }
 
@@ -166,9 +179,12 @@ public class OffHoursAnalysisService {
 
         String signal = snapshot.movePercent() >= 0 ? snapshot.sessionLabel().toUpperCase(Locale.ROOT) + " BREAKOUT" : snapshot.sessionLabel().toUpperCase(Locale.ROOT) + " DROP";
         String message = telegramAlertFormatter.formatSlidingWindowAlert(symbol, signal, Math.abs(snapshot.movePercent()) >= properties.offHours().alertThresholdPercent() ? 4 : 3, alert);
-        log.info("Off-hours decision symbol={} session={} action=ALERT move={} newsRequested={} newsResult={} newsDisplayed={}",
+        log.info("Off-hours decision symbol={} session={} action=ALERT previousClose={} latestPrice={} observedAt={} move={} newsRequested={} newsResult={} newsDisplayed={}",
                 symbol,
                 snapshot.sessionLabel(),
+                snapshot.previousClose(),
+                snapshot.latestPrice(),
+                snapshot.observedAt(),
                 snapshot.movePercent(),
                 useNews,
                 useNews ? (alert.newsFound() ? "found" : "empty") : "not_requested",
