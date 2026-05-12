@@ -107,25 +107,33 @@ public class MarketNewsTool {
     private boolean isUsefulResult(WebSearchOrganicResult result, String tickerSymbol) {
         String title = lower(result.title());
         String content = lower(result.content());
+        String snippet = lower(result.snippet());
         String url = lower(cleanUrl(result.url() != null ? result.url().toString() : ""));
         String ticker = tickerSymbol.toLowerCase(Locale.ROOT);
+        String combinedText = (title + " " + content + " " + snippet).trim();
 
-        if ((content == null || content.isBlank()) && (title == null || title.isBlank())) {
+        if (combinedText.isBlank()) {
             return false;
         }
 
-        if (content == null || content.isBlank() || "null".equals(content.trim())) {
+        if ((content == null || content.isBlank() || "null".equals(content.trim()))
+                && (snippet == null || snippet.isBlank() || "null".equals(snippet.trim()))) {
             return false;
         }
 
-        if (containsAny(title, "stock price", "price quote", "quote & news", "stock updates - page", "google finance", "robinhood", "cnn markets")
-                || containsAny(url, "/quote/", "/stocks/")) {
+        if (containsAny(title, "stock price", "price quote", "quote & news", "stock updates - page", "google finance", "robinhood", "cnn markets", "stock quote", "forecast")
+                || containsAny(url, "/quote/", "/stocks/", "/markets/stocks/", "/finance/quote/")) {
             return false;
         }
 
-        return title.contains(ticker)
-                || content.contains(ticker)
-                || containsAny(content, "earnings", "guidance", "acquisition", "lawsuit", "downgrade", "upgrade", "forecast", "revenue", "payment", "oil", "ev", "fintech", "sector");
+        boolean mentionsTicker = combinedText.contains(ticker);
+
+        boolean hasEventLanguage = containsAny(combinedText,
+                "earnings", "guidance", "revenue", "profit", "forecast", "analyst", "upgrade", "downgrade",
+                "acquisition", "merger", "partnership", "lawsuit", "investigation", "sec", "launch", "catalyst",
+                "after-hours", "premarket", "extended trading");
+
+        return mentionsTicker && hasEventLanguage;
     }
 
     private String chooseSummary(WebSearchOrganicResult result) {
@@ -173,25 +181,12 @@ public class MarketNewsTool {
         String upper = tickerSymbol.toUpperCase(Locale.ROOT);
         List<String> queries = new ArrayList<>();
 
-        queries.add(upper + " stock latest news update");
+        queries.add(upper + " earnings guidance analyst news");
+        queries.add(upper + " after hours move catalyst");
+        queries.add(upper + " analyst upgrade downgrade news");
+        queries.add(upper + " acquisition merger lawsuit investigation news");
+        queries.add(upper + " sec filing partnership launch catalyst");
 
-        switch (upper) {
-            case "OXY" -> {
-                queries.add("Occidental Petroleum latest news oil energy sector crude market today");
-                queries.add("oil prices energy sector news today OXY catalyst");
-            }
-            case "TSLA" -> {
-                queries.add("Tesla latest news EV sector market sentiment today");
-                queries.add("EV sector news today Tesla catalyst auto tech market");
-            }
-            case "XYZ", "SQ" -> {
-                queries.add("Block Inc latest news fintech payments sector today");
-                queries.add("fintech payments sector news today Block stock catalyst");
-            }
-            default -> queries.add(upper + " industry sector market trend news today");
-        }
-
-        queries.add(upper + " sector trend market sentiment today");
         return queries;
     }
 }

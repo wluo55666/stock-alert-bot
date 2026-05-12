@@ -33,16 +33,16 @@ class MarketNewsToolTest {
     @Test
     void testGetLatestNewsReturnsUsefulCatalystText() {
         WebSearchOrganicResult junkResult = new WebSearchOrganicResult(
-                "Block: XYZ Stock Price Quote & News - Robinhood",
+                "XYZ Stock Price Quote & News - Robinhood",
                 URI.create("https://robinhood.com/us/en/stocks/XYZ/"),
                 null,
                 null
         );
         WebSearchOrganicResult usefulResult = new WebSearchOrganicResult(
-                "Block shares jump after earnings beat",
-                URI.create("https://example.com/block-earnings"),
-                "Block rose in extended trading after reporting better-than-expected revenue and stronger payments volume.",
-                "Block rose in extended trading after reporting better-than-expected revenue and stronger payments volume."
+                "XYZ jumps after earnings beat",
+                URI.create("https://example.com/xyz-earnings"),
+                "XYZ rose in extended trading after reporting better-than-expected revenue and stronger guidance.",
+                "XYZ rose in extended trading after reporting better-than-expected revenue and stronger guidance."
         );
         WebSearchResults results = new WebSearchResults(
                 dev.langchain4j.web.search.WebSearchInformationResult.from(2L),
@@ -53,7 +53,8 @@ class MarketNewsToolTest {
 
         String news = marketNewsTool.getLatestNews("XYZ");
 
-        assertTrue(news.contains("Block shares jump after earnings beat"));
+        assertTrue(news.toLowerCase().contains("xyz"));
+        assertTrue(news.toLowerCase().contains("earnings") || news.toLowerCase().contains("guidance"));
         assertTrue(news.contains("better-than-expected revenue"));
         assertFalse(news.contains("Robinhood"));
         assertFalse(news.contains("Summary: null"));
@@ -77,5 +78,53 @@ class MarketNewsToolTest {
         String news = marketNewsTool.getLatestNews("XYZ");
 
         assertTrue(news.contains("No relevant company, sector, or market news found for XYZ"));
+    }
+
+    @Test
+    void testUniversalEventDrivenQueriesAreUsed() {
+        List<String> queries = invokeBuildQueries("XYZ");
+
+        assertTrue(queries.contains("XYZ earnings guidance analyst news"));
+        assertTrue(queries.contains("XYZ after hours move catalyst"));
+        assertTrue(queries.contains("XYZ analyst upgrade downgrade news"));
+        assertTrue(queries.contains("XYZ acquisition merger lawsuit investigation news"));
+        assertTrue(queries.contains("XYZ sec filing partnership launch catalyst"));
+        assertEquals(5, queries.size());
+    }
+
+    @Test
+    void testWeakOverviewResultIsFilteredOut() {
+        WebSearchOrganicResult weakResult = new WebSearchOrganicResult(
+                "XYZ overview page",
+                URI.create("https://example.com/xyz-overview"),
+                "XYZ is a company in the payments space.",
+                "XYZ is a company in the payments space."
+        );
+        WebSearchResults results = new WebSearchResults(
+                dev.langchain4j.web.search.WebSearchInformationResult.from(1L),
+                List.of(weakResult)
+        );
+
+        when(webSearchEngine.search(anyString())).thenReturn(results);
+
+        String news = marketNewsTool.getLatestNews("XYZ");
+
+        assertTrue(news.contains("No relevant company, sector, or market news found for XYZ"));
+        assertFalse(news.contains("overview page"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> invokeBuildQueries(String ticker) {
+        try {
+            var method = MarketNewsTool.class.getDeclaredMethod("buildQueries", String.class);
+            method.setAccessible(true);
+            return (List<String>) method.invoke(marketNewsTool, ticker);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void assertEquals(int expected, int actual) {
+        org.junit.jupiter.api.Assertions.assertEquals(expected, actual);
     }
 }
