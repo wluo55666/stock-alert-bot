@@ -126,15 +126,14 @@ public class MarketNewsTool {
             return false;
         }
 
-        boolean mentionsTickerOrCompany = combinedText.contains(ticker)
-                || containsAny(combinedText, "block inc", "block, inc", "tesla", "occidental petroleum", "oxy", "square");
+        boolean mentionsTicker = combinedText.contains(ticker);
 
         boolean hasEventLanguage = containsAny(combinedText,
                 "earnings", "guidance", "revenue", "profit", "forecast", "analyst", "upgrade", "downgrade",
                 "acquisition", "merger", "partnership", "lawsuit", "investigation", "sec", "launch", "catalyst",
                 "after-hours", "premarket", "extended trading");
 
-        return mentionsTickerOrCompany && hasEventLanguage;
+        return mentionsTicker && hasEventLanguage;
     }
 
     private String chooseSummary(WebSearchOrganicResult result) {
@@ -182,33 +181,11 @@ public class MarketNewsTool {
         String upper = tickerSymbol.toUpperCase(Locale.ROOT);
         List<String> queries = new ArrayList<>();
 
-        switch (upper) {
-            case "OXY" -> {
-                queries.add("Occidental Petroleum earnings guidance analyst news");
-                queries.add("Occidental Petroleum after hours move catalyst");
-                queries.add("Occidental Petroleum acquisition lawsuit investigation oil news");
-                queries.add("oil energy sector catalyst affecting Occidental Petroleum today");
-            }
-            case "TSLA" -> {
-                queries.add("Tesla earnings guidance analyst news");
-                queries.add("Tesla after hours move catalyst");
-                queries.add("Tesla launch delivery investigation lawsuit news");
-                queries.add("EV sector catalyst affecting Tesla today");
-            }
-            case "XYZ", "SQ" -> {
-                queries.add("Block Inc earnings guidance payments news");
-                queries.add("Block Inc after hours move catalyst");
-                queries.add("Block Inc analyst upgrade downgrade news");
-                queries.add("Block Inc acquisition lawsuit investigation fintech news");
-                queries.add("fintech payments sector catalyst affecting Block today");
-            }
-            default -> {
-                queries.add(upper + " earnings guidance analyst news");
-                queries.add(upper + " after hours move catalyst");
-                queries.add(upper + " acquisition lawsuit investigation news");
-                queries.add(upper + " industry sector catalyst today");
-            }
-        }
+        queries.add(upper + " earnings guidance analyst news");
+        queries.add(upper + " after hours move catalyst");
+        queries.add(upper + " analyst upgrade downgrade news");
+        queries.add(upper + " acquisition merger lawsuit investigation news");
+        queries.add(upper + " sec filing partnership launch catalyst");
 
         return queries;
     }

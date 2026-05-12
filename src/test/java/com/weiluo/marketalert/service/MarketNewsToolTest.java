@@ -33,16 +33,16 @@ class MarketNewsToolTest {
     @Test
     void testGetLatestNewsReturnsUsefulCatalystText() {
         WebSearchOrganicResult junkResult = new WebSearchOrganicResult(
-                "Block: XYZ Stock Price Quote & News - Robinhood",
+                "XYZ Stock Price Quote & News - Robinhood",
                 URI.create("https://robinhood.com/us/en/stocks/XYZ/"),
                 null,
                 null
         );
         WebSearchOrganicResult usefulResult = new WebSearchOrganicResult(
-                "Block Inc shares jump after earnings beat",
-                URI.create("https://example.com/block-earnings"),
-                "Block Inc rose in extended trading after reporting better-than-expected revenue and stronger payments volume.",
-                "Block Inc rose in extended trading after reporting better-than-expected revenue and stronger payments volume."
+                "XYZ jumps after earnings beat",
+                URI.create("https://example.com/xyz-earnings"),
+                "XYZ rose in extended trading after reporting better-than-expected revenue and stronger guidance.",
+                "XYZ rose in extended trading after reporting better-than-expected revenue and stronger guidance."
         );
         WebSearchResults results = new WebSearchResults(
                 dev.langchain4j.web.search.WebSearchInformationResult.from(2L),
@@ -53,8 +53,8 @@ class MarketNewsToolTest {
 
         String news = marketNewsTool.getLatestNews("XYZ");
 
-        assertTrue(news.toLowerCase().contains("block inc"));
-        assertTrue(news.toLowerCase().contains("earnings") || news.toLowerCase().contains("revenue"));
+        assertTrue(news.toLowerCase().contains("xyz"));
+        assertTrue(news.toLowerCase().contains("earnings") || news.toLowerCase().contains("guidance"));
         assertTrue(news.contains("better-than-expected revenue"));
         assertFalse(news.contains("Robinhood"));
         assertFalse(news.contains("Summary: null"));
@@ -81,23 +81,24 @@ class MarketNewsToolTest {
     }
 
     @Test
-    void testEventDrivenQueriesAreUsedForBlock() {
+    void testUniversalEventDrivenQueriesAreUsed() {
         List<String> queries = invokeBuildQueries("XYZ");
 
-        assertTrue(queries.contains("Block Inc earnings guidance payments news"));
-        assertTrue(queries.contains("Block Inc after hours move catalyst"));
-        assertTrue(queries.contains("Block Inc analyst upgrade downgrade news"));
-        assertFalse(queries.contains("XYZ stock latest news update"));
-        assertFalse(queries.contains("XYZ sector trend market sentiment today"));
+        assertTrue(queries.contains("XYZ earnings guidance analyst news"));
+        assertTrue(queries.contains("XYZ after hours move catalyst"));
+        assertTrue(queries.contains("XYZ analyst upgrade downgrade news"));
+        assertTrue(queries.contains("XYZ acquisition merger lawsuit investigation news"));
+        assertTrue(queries.contains("XYZ sec filing partnership launch catalyst"));
+        assertEquals(5, queries.size());
     }
 
     @Test
     void testWeakOverviewResultIsFilteredOut() {
         WebSearchOrganicResult weakResult = new WebSearchOrganicResult(
-                "Block Inc overview page",
-                URI.create("https://example.com/block-overview"),
-                "Block Inc is a fintech company focused on payments.",
-                "Block Inc is a fintech company focused on payments."
+                "XYZ overview page",
+                URI.create("https://example.com/xyz-overview"),
+                "XYZ is a company in the payments space.",
+                "XYZ is a company in the payments space."
         );
         WebSearchResults results = new WebSearchResults(
                 dev.langchain4j.web.search.WebSearchInformationResult.from(1L),
@@ -121,5 +122,9 @@ class MarketNewsToolTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void assertEquals(int expected, int actual) {
+        org.junit.jupiter.api.Assertions.assertEquals(expected, actual);
     }
 }
